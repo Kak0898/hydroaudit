@@ -73,6 +73,27 @@ function generarCodigo(form: MachineRow) {
   return ''
 }
 
+function extraerNumero(value?: string | number | null) {
+  const match = String(value ?? '').match(/\d+/)
+
+  return match ? Number(match[0]) : 0
+}
+
+function extraerNumeroCodigo(code?: string | null) {
+  const match = String(code || '').match(/^MAQ-(\d+)$/i)
+
+  return match ? Number(match[1]) : 0
+}
+
+function crearIdentificadorMaquinaria(conteo: number) {
+  const conteoText = String(conteo)
+
+  return {
+    conteo: conteoText,
+    code: `MAQ-${conteoText.padStart(3, '0')}`,
+  }
+}
+
 function generarNombre(form: MachineRow) {
   if (form.name) return form.name
 
@@ -199,16 +220,79 @@ export function Maquinaria() {
     }
   }
 
-  function nuevaMaquinaria() {
-    setForm(emptyForm)
+  async function obtenerSiguienteIdentificador() {
+    let maxConteo = 0
+    let from = 0
+    const batchSize = 1000
+
+    while (true) {
+      const to = from + batchSize - 1
+      const { data, error } = await supabase
+        .from('machines')
+        .select('conteo, code')
+        .range(from, to)
+
+      if (error) {
+        throw error
+      }
+
+      const rows = data || []
+
+      rows.forEach((machine) => {
+        maxConteo = Math.max(
+          maxConteo,
+          extraerNumero(machine.conteo),
+          extraerNumeroCodigo(machine.code),
+        )
+      })
+
+      if (rows.length < batchSize) break
+      from += batchSize
+    }
+
+    return crearIdentificadorMaquinaria(maxConteo + 1)
+  }
+
+  async function nuevaMaquinaria() {
+    setLoading(true)
+
+    try {
+      const identificador = await obtenerSiguienteIdentificador()
+
+      setForm({
+        ...emptyForm,
+        ...identificador,
+      })
+    } catch (error: any) {
+      alert(error.message)
+      setForm(emptyForm)
+    }
+
+    setLoading(false)
     setEditingCode(null)
     setSelectedMachine(null)
     setShowForm(true)
   }
 
   async function save() {
-    const code = generarCodigo(form)
-    const name = generarNombre(form)
+    let formToSave = form
+
+    if (!editingCode) {
+      try {
+        const identificador = await obtenerSiguienteIdentificador()
+        formToSave = {
+          ...form,
+          ...identificador,
+        }
+        setForm(formToSave)
+      } catch (error: any) {
+        alert(error.message)
+        return
+      }
+    }
+
+    const code = generarCodigo(formToSave)
+    const name = generarNombre(formToSave)
 
     if (!code || !name) {
       return alert('Falta código/conteo y nombre o datos de la máquina')
@@ -217,28 +301,32 @@ export function Maquinaria() {
     const payload = {
       code,
       name,
-      conteo: form.conteo || '',
-      brand: form.brand || '',
-      model: form.model || '',
-      color: form.color || '',
-      serial: form.serial || '',
-      tipo: form.tipo || '',
-      anio: form.anio ? Number(form.anio) : null,
-      location: form.location || '',
-      status: form.status || 'activo',
-      estado_fisico: form.estado_fisico || 'buen estado',
-      estado_detalle: form.estado_detalle || '',
-      disponibilidad: form.disponibilidad || '',
-      tipo_bateria: form.tipo_bateria || '',
-      alto_bateria: Number(form.alto_bateria || 0),
-      ancho_bateria: Number(form.ancho_bateria || 0),
-      largo: Number(form.largo || 0),
-      altura: Number(form.altura || 0),
+      conteo: formToSave.conteo || '',
+      brand: formToSave.brand || '',
+      model: formToSave.model || '',
+      color: formToSave.color || '',
+      serial: formToSave.serial || '',
+      tipo: formToSave.tipo || '',
+      anio: formToSave.anio ? Number(formToSave.anio) : null,
+      location: formToSave.location || '',
+      status: formToSave.status || 'activo',
+      estado_fisico: formToSave.estado_fisico || 'buen estado',
+      estado_detalle: formToSave.estado_detalle || '',
+      disponibilidad: formToSave.disponibilidad || '',
+      tipo_bateria: formToSave.tipo_bateria || '',
+      alto_bateria: Number(formToSave.alto_bateria || 0),
+      ancho_bateria: Number(formToSave.ancho_bateria || 0),
+      largo: Number(formToSave.largo || 0),
+      altura: Number(formToSave.altura || 0),
     }
 
-    const { error } = await supabase
-      .from('machines')
-      .upsert(payload, { onConflict: 'code' })
+    const { error } = editingCode
+      ? await supabase
+        .from('machines')
+        .upsert(payload, { onConflict: 'code' })
+      : await supabase
+        .from('machines')
+        .insert(payload)
 
     if (error) {
       alert(error.message)
@@ -372,17 +460,18 @@ export function Maquinaria() {
 
             <div className="grid md:grid-cols-5 gap-3">
               <input
-                className="border p-3 rounded"
-                placeholder="Código"
+                className="border p-3 rounded bg-slate-100 text-slate-600"
+                placeholder="Código automático"
                 value={form.code}
-                disabled={!!editingCode}
+                disabled
                 onChange={(e) => setForm({ ...form, code: e.target.value })}
               />
 
               <input
-                className="border p-3 rounded"
-                placeholder="Conteo"
+                className={`border p-3 rounded ${!editingCode ? 'bg-slate-100 text-slate-600' : ''}`}
+                placeholder="Conteo automático"
                 value={form.conteo || ''}
+                disabled={!editingCode}
                 onChange={(e) => setForm({ ...form, conteo: e.target.value })}
               />
 
