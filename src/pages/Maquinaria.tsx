@@ -86,10 +86,12 @@ export function Maquinaria() {
   const [editingCode, setEditingCode] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [totalRows, setTotalRows] = useState(0)
+  const [serieInput, setSerieInput] = useState('')
   const [searchSerie, setSearchSerie] = useState('')
   const [loading, setLoading] = useState(false)
 
-const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE))
+
   async function load(currentPage = page, serie = searchSerie) {
     setLoading(true)
 
@@ -109,6 +111,8 @@ const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE))
 
     if (error) {
       alert(error.message)
+      setItems([])
+      setTotalRows(0)
       setLoading(false)
       return
     }
@@ -118,13 +122,30 @@ const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE))
     setLoading(false)
   }
 
-    useEffect(() => {
-    const timer = setTimeout(() => {
-      load(page, searchSerie)
-    }, 400)
-
-    return () => clearTimeout(timer)
+  useEffect(() => {
+    load(page, searchSerie)
   }, [page, searchSerie])
+
+  function buscarSerie() {
+    const serie = serieInput.trim()
+
+    setPage(1)
+    setSearchSerie(serie)
+
+    if (page === 1 && searchSerie === serie) {
+      load(1, serie)
+    }
+  }
+
+  function limpiarBusqueda() {
+    setSerieInput('')
+    setPage(1)
+    setSearchSerie('')
+
+    if (page === 1 && searchSerie === '') {
+      load(1, '')
+    }
+  }
 
   async function save() {
     const code = generarCodigo(form)
@@ -167,7 +188,7 @@ const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE))
 
     setForm(emptyForm)
     setEditingCode(null)
-    load()
+    load(page, searchSerie)
 
     alert(editingCode ? 'Maquinaria actualizada correctamente' : 'Maquinaria guardada correctamente')
   }
@@ -218,7 +239,7 @@ const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE))
       return
     }
 
-    setItems(items.filter((item) => item.code !== code))
+    load(page, searchSerie)
     alert('Maquinaria eliminada correctamente')
   }
 
@@ -395,6 +416,40 @@ const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE))
           )}
         </div>
 
+        <div className="flex flex-col gap-3 mb-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center">
+            <input
+              className="border p-3 rounded"
+              placeholder="Buscar por serie"
+              value={serieInput}
+              onChange={(e) => setSerieInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') buscarSerie()
+              }}
+            />
+
+            <button
+              onClick={buscarSerie}
+              disabled={loading}
+              className="bg-blue-600 text-white rounded px-4 py-3 disabled:opacity-50"
+            >
+              Buscar
+            </button>
+
+            <button
+              onClick={limpiarBusqueda}
+              disabled={loading && !serieInput && !searchSerie}
+              className="bg-slate-700 text-white rounded px-4 py-3 disabled:opacity-50"
+            >
+              Limpiar
+            </button>
+          </div>
+
+          <div className="text-sm text-slate-600">
+            {loading ? 'Cargando maquinaria...' : `${totalRows} registro${totalRows === 1 ? '' : 's'}`}
+          </div>
+        </div>
+
         <div className="overflow-auto">
           <table className="w-full text-left text-sm">
             <thead>
@@ -408,6 +463,7 @@ const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE))
                 <th className="py-2">Tipo</th>
                 <th className="py-2">Año</th>
                 <th className="py-2">Ubicación</th>
+                <th className="py-2">Estado</th>
                 <th className="py-2">Estado físico</th>
                 <th className="py-2">Estado detalle</th>
                 <th className="py-2">Disponibilidad</th>
@@ -421,7 +477,7 @@ const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE))
             </thead>
 
             <tbody>
-              {items.map((m) => (
+              {!loading && items.map((m) => (
                 <tr className="border-b" key={m.id || m.code}>
                   <td className="py-2">{m.conteo || '-'}</td>
                   <td className="py-2">{m.code}</td>
@@ -432,6 +488,7 @@ const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE))
                   <td className="py-2">{m.tipo || '-'}</td>
                   <td className="py-2">{m.anio || '-'}</td>
                   <td className="py-2">{m.location || '-'}</td>
+                  <td className="py-2">{m.status || '-'}</td>
                   <td className="py-2">{m.estado_fisico || '-'}</td>
                   <td className="py-2">{m.estado_detalle || '-'}</td>
                   <td className="py-2">{m.disponibilidad || '-'}</td>
@@ -459,8 +516,48 @@ const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE))
                   </td>
                 </tr>
               ))}
+
+              {!loading && items.length === 0 && (
+                <tr>
+                  <td className="py-4 text-center text-slate-500" colSpan={19}>
+                    No hay maquinaria para mostrar
+                  </td>
+                </tr>
+              )}
+
+              {loading && (
+                <tr>
+                  <td className="py-4 text-center text-slate-500" colSpan={19}>
+                    Cargando maquinaria...
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
+        </div>
+
+        <div className="flex flex-col gap-3 mt-4 md:flex-row md:items-center md:justify-between">
+          <div className="text-sm text-slate-600">
+            Página {page} de {totalPages}
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
+              disabled={loading || page <= 1}
+              className="bg-slate-700 text-white rounded px-4 py-2 disabled:opacity-50"
+            >
+              Anterior
+            </button>
+
+            <button
+              onClick={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}
+              disabled={loading || page >= totalPages}
+              className="bg-slate-700 text-white rounded px-4 py-2 disabled:opacity-50"
+            >
+              Siguiente
+            </button>
+          </div>
         </div>
       </Card>
     </div>
