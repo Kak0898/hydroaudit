@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/card.tsx","./src/components/layout.tsx","./src/lib/excel.ts","./src/lib/supabase.ts","./src/pages/auditorias.tsx","./src/pages/dashboard.tsx","./src/pages/importar.tsx","./src/pages/maquinaria.tsx","./src/pages/repuestos.tsx","./src/types/index.ts"],"errors":true,"version":"6.0.3"}
