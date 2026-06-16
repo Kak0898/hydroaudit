@@ -1,4 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
+import {
+  AlertTriangle,
+  Boxes,
+  DollarSign,
+  MapPin,
+  RefreshCw,
+  ShieldCheck,
+  Truck,
+  Wrench,
+} from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Card } from '../components/Card'
 import {
@@ -19,9 +29,15 @@ type MachineRow = {
   id?: string
   code?: string
   name?: string
+  conteo?: string
   brand?: string
+  model?: string
+  serial?: string
+  tipo?: string
+  location?: string
   status?: string
   estado_fisico?: string
+  disponibilidad?: string
 }
 
 type SparePartRow = {
@@ -39,7 +55,13 @@ type SparePartRow = {
   notes?: string
 }
 
-type DashboardTab = 'maquinaria' | 'repuestos'
+type KpiCardProps = {
+  title: string
+  value: string | number
+  detail: string
+  tone?: 'blue' | 'green' | 'amber' | 'red' | 'slate'
+  icon: React.ReactNode
+}
 
 function normalizar(value: any) {
   return String(value ?? '').trim().toLowerCase()
@@ -50,19 +72,120 @@ function numero(value: any) {
   return Number.isFinite(n) ? n : 0
 }
 
-const colores = ['#2563eb', '#16a34a', '#f97316', '#dc2626', '#7c3aed', '#0891b2']
+function porcentaje(value: number, total: number) {
+  if (!total) return 0
+  return Math.round((value / total) * 100)
+}
+
+function formatoDinero(value: number) {
+  return `$${Math.round(value).toLocaleString('es-CL')}`
+}
+
+function etiqueta(value?: string, fallback = 'Sin dato') {
+  const text = String(value || '').trim()
+  return text || fallback
+}
+
+function topEntries(
+  rows: Array<Record<string, any>>,
+  field: string,
+  fallback: string,
+  limit = 6,
+) {
+  const totals = rows.reduce<Record<string, number>>((acc, row) => {
+    const key = etiqueta(row[field], fallback)
+    acc[key] = (acc[key] || 0) + 1
+    return acc
+  }, {})
+
+  return Object.entries(totals)
+    .map(([name, cantidad]) => ({ name, cantidad }))
+    .sort((a, b) => b.cantidad - a.cantidad)
+    .slice(0, limit)
+}
+
+function stockEntries(rows: SparePartRow[], field: keyof SparePartRow, fallback: string, limit = 6) {
+  const totals = rows.reduce<Record<string, number>>((acc, row) => {
+    const key = etiqueta(String(row[field] || ''), fallback)
+    acc[key] = (acc[key] || 0) + numero(row.stock)
+    return acc
+  }, {})
+
+  return Object.entries(totals)
+    .map(([name, stock]) => ({ name, stock }))
+    .sort((a, b) => b.stock - a.stock)
+    .slice(0, limit)
+}
+
+function compactName(value: string) {
+  return value.length > 16 ? `${value.slice(0, 15)}...` : value
+}
+
+function badgeClass(value?: string) {
+  const estado = normalizar(value)
+
+  if (estado.includes('activo') || estado.includes('disponible') || estado.includes('buen')) {
+    return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  }
+
+  if (estado.includes('mantenimiento') || estado.includes('regular') || estado.includes('revision')) {
+    return 'bg-amber-50 text-amber-700 border-amber-200'
+  }
+
+  if (estado.includes('inactivo') || estado.includes('baja') || estado.includes('malo') || estado.includes('no oper')) {
+    return 'bg-red-50 text-red-700 border-red-200'
+  }
+
+  return 'bg-slate-50 text-slate-700 border-slate-200'
+}
+
+function Badge({ value }: { value?: string }) {
+  return (
+    <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${badgeClass(value)}`}>
+      {value || 'Sin dato'}
+    </span>
+  )
+}
+
+function KpiCard({ title, value, detail, tone = 'slate', icon }: KpiCardProps) {
+  const tones = {
+    blue: 'bg-blue-50 text-blue-700',
+    green: 'bg-emerald-50 text-emerald-700',
+    amber: 'bg-amber-50 text-amber-700',
+    red: 'bg-red-50 text-red-700',
+    slate: 'bg-slate-100 text-slate-700',
+  }
+
+  return (
+    <Card>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-slate-500">{title}</p>
+          <h3 className="mt-2 text-4xl font-bold text-slate-950">{value}</h3>
+          <p className="mt-2 text-sm text-slate-600">{detail}</p>
+        </div>
+
+        <div className={`rounded p-3 ${tones[tone]}`}>{icon}</div>
+      </div>
+    </Card>
+  )
+}
+
+function ChartTitle({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div className="mb-4">
+      <h3 className="text-lg font-bold text-slate-950">{title}</h3>
+      {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+    </div>
+  )
+}
+
+const colores = ['#2563eb', '#16a34a', '#f97316', '#dc2626', '#7c3aed', '#0891b2', '#475569']
 
 export function Dashboard() {
-  const [tab, setTab] = useState<DashboardTab>('maquinaria')
   const [machines, setMachines] = useState<MachineRow[]>([])
   const [spareParts, setSpareParts] = useState<SparePartRow[]>([])
   const [loading, setLoading] = useState(true)
-
-  const [filtroMarca, setFiltroMarca] = useState<string | null>(null)
-  const [filtroEstado, setFiltroEstado] = useState<string | null>(null)
-  const [filtroEstadoFisico, setFiltroEstadoFisico] = useState<string | null>(null)
-  const [filtroCategoria, setFiltroCategoria] = useState<string | null>(null)
-  const [filtroProveedor, setFiltroProveedor] = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
@@ -98,167 +221,119 @@ export function Dashboard() {
     load()
   }, [])
 
-  const machineStats = useMemo(() => {
-    const total = machines.length
+  const stats = useMemo(() => {
+    const totalMachines = machines.length
+    const totalSpareParts = spareParts.length
 
-    const usadas = machines.filter((m) => {
-      const estadoFisico = normalizar(m.estado_fisico)
-      return estadoFisico === 'usado' || estadoFisico === 'usada'
+    const activas = machines.filter((m) => normalizar(m.status) === 'activo').length
+    const mantenimiento = machines.filter((m) => normalizar(m.status).includes('mantenimiento')).length
+    const disponibles = machines.filter((m) => normalizar(m.disponibilidad).includes('disponible')).length
+    const arrendadas = machines.filter((m) => normalizar(m.disponibilidad).includes('arrendada')).length
+    const noOperativas = machines.filter((m) => {
+      const disponibilidad = normalizar(m.disponibilidad)
+      const estado = normalizar(m.status)
+      const fisico = normalizar(m.estado_fisico)
+
+      return (
+        disponibilidad.includes('no oper') ||
+        disponibilidad.includes('revision') ||
+        estado.includes('baja') ||
+        estado.includes('inactivo') ||
+        fisico.includes('malo')
+      )
     }).length
 
     const buenEstado = machines.filter((m) => {
       const estadoFisico = normalizar(m.estado_fisico)
-      return (
-        estadoFisico === 'buen_estado' ||
-        estadoFisico === 'buen estado' ||
-        estadoFisico === 'bueno'
-      )
+      return estadoFisico === 'buen_estado' || estadoFisico === 'buen estado' || estadoFisico === 'bueno'
     }).length
 
-    const activas = machines.filter((m) => normalizar(m.status) === 'activo').length
+    const marcasData = topEntries(machines as Array<Record<string, any>>, 'brand', 'Sin marca')
+    const tiposData = topEntries(machines as Array<Record<string, any>>, 'tipo', 'Sin tipo')
+    const ubicacionesData = topEntries(machines as Array<Record<string, any>>, 'location', 'Sin ubicación')
 
-    const porMarca = machines.reduce<Record<string, number>>((acc, machine) => {
-      const marca = machine.brand?.trim() || 'Sin marca'
-      acc[marca] = (acc[marca] || 0) + 1
-      return acc
-    }, {})
-
-    const marcasData = Object.entries(porMarca)
-      .map(([marca, cantidad]) => ({ marca, cantidad }))
-      .sort((a, b) => b.cantidad - a.cantidad)
-
-    const porEstado = machines.reduce<Record<string, number>>((acc, machine) => {
-      const estado = machine.status?.trim() || 'sin_estado'
-      acc[estado] = (acc[estado] || 0) + 1
-      return acc
-    }, {})
-
-    const estadosData = Object.entries(porEstado).map(([estado, cantidad]) => ({
-      estado,
-      cantidad,
+    const estadosData = topEntries(machines as Array<Record<string, any>>, 'status', 'Sin estado').map((item) => ({
+      estado: item.name,
+      cantidad: item.cantidad,
     }))
 
-    const porEstadoFisico = machines.reduce<Record<string, number>>((acc, machine) => {
-        const estadoFisico = machine.estado_fisico?.trim() || 'sin_estado_fisico'
-        acc[estadoFisico] = (acc[estadoFisico] || 0) + 1
-        return acc
-        }, {})
+    const disponibilidadData = topEntries(machines as Array<Record<string, any>>, 'disponibilidad', 'Sin dato').map((item) => ({
+      estado: item.name,
+      cantidad: item.cantidad,
+    }))
 
-        const estadosFisicosData = Object.entries(porEstadoFisico).map(
-        ([estado_fisico, cantidad]) => ({
-            estado_fisico,
-            cantidad,
-        })
-    )
-
-
-
-    return {
-      total,
-      usadas,
-      buenEstado,
-      activas,
-      marcasData,
-      estadosData,
-      estadosFisicosData,
-    }
-  }, [machines])
-
-  const spareStats = useMemo(() => {
-    const total = spareParts.length
+    const valorInventario = spareParts.reduce((acc, r) => {
+      return acc + numero(r.stock) * numero(r.unit_price)
+    }, 0)
 
     const bajoStock = spareParts.filter((r) => {
       return numero(r.stock) <= numero(r.min_stock) && numero(r.stock) > 0
     }).length
 
     const sinStock = spareParts.filter((r) => numero(r.stock) <= 0).length
-
-    const valorInventario = spareParts.reduce((acc, r) => {
-      return acc + numero(r.stock) * numero(r.unit_price)
-    }, 0)
-
-    const porCategoria = spareParts.reduce<Record<string, number>>((acc, r) => {
-      const categoria = r.category?.trim() || 'Sin categoría'
-      acc[categoria] = (acc[categoria] || 0) + 1
-      return acc
-    }, {})
-
-    const categoriasData = Object.entries(porCategoria)
-      .map(([categoria, cantidad]) => ({ categoria, cantidad }))
-      .sort((a, b) => b.cantidad - a.cantidad)
-
-    const porProveedor = spareParts.reduce<Record<string, number>>((acc, r) => {
-      const proveedor = r.supplier?.trim() || 'Sin proveedor'
-      acc[proveedor] = (acc[proveedor] || 0) + 1
-      return acc
-    }, {})
-
-    const proveedoresData = Object.entries(porProveedor)
-      .map(([proveedor, cantidad]) => ({ proveedor, cantidad }))
-      .sort((a, b) => b.cantidad - a.cantidad)
-
-    const porUbicacion = spareParts.reduce<Record<string, number>>((acc, r) => {
-      const ubicacion = r.location?.trim() || 'Sin ubicación'
-      acc[ubicacion] = (acc[ubicacion] || 0) + numero(r.stock)
-      return acc
-    }, {})
-
-    const ubicacionesData = Object.entries(porUbicacion)
-      .map(([ubicacion, stock]) => ({ ubicacion, stock }))
-      .sort((a, b) => b.stock - a.stock)
-
-    const criticos = spareParts
+    const repuestosCriticos = spareParts
       .filter((r) => numero(r.stock) <= numero(r.min_stock))
       .sort((a, b) => numero(a.stock) - numero(b.stock))
+      .slice(0, 6)
+
+    const categoriasData = topEntries(spareParts as Array<Record<string, any>>, 'category', 'Sin categoría')
+    const proveedoresData = topEntries(spareParts as Array<Record<string, any>>, 'supplier', 'Sin proveedor')
+    const stockPorUbicacion = stockEntries(spareParts, 'location', 'Sin ubicación')
+
+    const coberturaOperativa = porcentaje(activas, totalMachines)
+    const saludFlota = porcentaje(buenEstado, totalMachines)
+    const disponibilidadComercial = porcentaje(disponibles + arrendadas, totalMachines)
+    const riesgoRepuestos = porcentaje(bajoStock + sinStock, totalSpareParts)
+
+    const maquinasPrioritarias = machines
+      .filter((m) => {
+        const estado = normalizar(m.status)
+        const disponibilidad = normalizar(m.disponibilidad)
+        const fisico = normalizar(m.estado_fisico)
+        return (
+          estado.includes('mantenimiento') ||
+          estado.includes('baja') ||
+          disponibilidad.includes('no oper') ||
+          disponibilidad.includes('revision') ||
+          fisico.includes('regular') ||
+          fisico.includes('malo')
+        )
+      })
+      .slice(0, 6)
 
     return {
-      total,
+      totalMachines,
+      totalSpareParts,
+      activas,
+      mantenimiento,
+      disponibles,
+      arrendadas,
+      noOperativas,
+      buenEstado,
+      marcasData,
+      tiposData,
+      ubicacionesData,
+      estadosData,
+      disponibilidadData,
+      valorInventario,
       bajoStock,
       sinStock,
-      valorInventario,
+      repuestosCriticos,
       categoriasData,
       proveedoresData,
-      ubicacionesData,
-      criticos,
+      stockPorUbicacion,
+      coberturaOperativa,
+      saludFlota,
+      disponibilidadComercial,
+      riesgoRepuestos,
+      maquinasPrioritarias,
     }
-  }, [spareParts])
-
-  const maquinasFiltradas = useMemo(() => {
-    return machines.filter((m) => {
-        const coincideMarca = filtroMarca
-        ? (m.brand || 'Sin marca') === filtroMarca
-        : true
-
-        const coincideEstado = filtroEstado
-        ? (m.status || 'sin_estado') === filtroEstado
-        : true
-
-        const coincideEstadoFisico = filtroEstadoFisico
-        ? (m.estado_fisico || 'sin_estado_fisico') === filtroEstadoFisico
-        : true
-
-        return coincideMarca && coincideEstado && coincideEstadoFisico
-    })
-    }, [machines, filtroMarca, filtroEstado, filtroEstadoFisico])
-
-  const repuestosFiltrados = useMemo(() => {
-    return spareParts.filter((r) => {
-      const coincideCategoria = filtroCategoria
-        ? (r.category || 'Sin categoría') === filtroCategoria
-        : true
-
-      const coincideProveedor = filtroProveedor
-        ? (r.supplier || 'Sin proveedor') === filtroProveedor
-        : true
-
-      return coincideCategoria && coincideProveedor
-    })
-  }, [spareParts, filtroCategoria, filtroProveedor])
+  }, [machines, spareParts])
 
   if (loading) {
     return (
       <div>
-        <h2 className="text-3xl font-bold mb-6">Panel de Control</h2>
+        <h2 className="text-3xl font-bold mb-6">Dashboard Comercial</h2>
         <Card>
           <p>Cargando dashboard...</p>
         </Card>
@@ -268,408 +343,340 @@ export function Dashboard() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-3xl font-bold">Panel de Control</h2>
+      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase text-blue-700">HydroAudit Rental</p>
+          <h2 className="mt-1 text-3xl font-bold text-slate-950">Dashboard Comercial</h2>
+          <p className="mt-2 max-w-3xl text-slate-600">
+            Inventario operativo, disponibilidad de flota y respaldo de repuestos para decisiones comerciales.
+          </p>
+        </div>
 
         <button
           onClick={load}
-          className="bg-blue-600 text-white px-4 py-2 rounded"
+          className="inline-flex items-center justify-center gap-2 rounded bg-blue-600 px-4 py-3 text-white"
         >
+          <RefreshCw size={18} />
           Actualizar
         </button>
       </div>
 
-      <div className="flex gap-3 mb-6">
-        <button
-          onClick={() => setTab('maquinaria')}
-          className={`px-4 py-2 rounded ${
-            tab === 'maquinaria'
-              ? 'bg-slate-900 text-white'
-              : 'bg-slate-200 text-slate-800'
-          }`}
-        >
-          Maquinaria
-        </button>
+      <div className="mb-6 grid gap-4 md:grid-cols-4">
+        <KpiCard
+          title="Flota inventariada"
+          value={stats.totalMachines}
+          detail={`${stats.activas} activas · ${stats.mantenimiento} en mantenimiento`}
+          tone="blue"
+          icon={<Truck size={24} />}
+        />
 
-        <button
-          onClick={() => setTab('repuestos')}
-          className={`px-4 py-2 rounded ${
-            tab === 'repuestos'
-              ? 'bg-slate-900 text-white'
-              : 'bg-slate-200 text-slate-800'
-          }`}
-        >
-          Repuestos
-        </button>
+        <KpiCard
+          title="Disponibilidad comercial"
+          value={`${stats.disponibilidadComercial}%`}
+          detail={`${stats.disponibles} disponibles · ${stats.arrendadas} arrendadas`}
+          tone="green"
+          icon={<ShieldCheck size={24} />}
+        />
+
+        <KpiCard
+          title="Salud de flota"
+          value={`${stats.saludFlota}%`}
+          detail={`${stats.buenEstado} máquinas en buen estado`}
+          tone="amber"
+          icon={<Wrench size={24} />}
+        />
+
+        <KpiCard
+          title="Respaldo repuestos"
+          value={formatoDinero(stats.valorInventario)}
+          detail={`${stats.totalSpareParts} SKUs · ${stats.riesgoRepuestos}% en riesgo`}
+          tone={stats.riesgoRepuestos > 20 ? 'red' : 'slate'}
+          icon={<Boxes size={24} />}
+        />
       </div>
 
-      {tab === 'maquinaria' && (
-        <>
-          <div className="grid md:grid-cols-4 gap-4 mb-6">
-            <Card>
-              <p className="text-slate-500 text-sm">Total Maquinaria</p>
-              <h3 className="text-4xl font-bold mt-2">{machineStats.total}</h3>
-            </Card>
+      <div className="mb-6 grid gap-4 md:grid-cols-3">
+        <Card>
+          <ChartTitle title="Flota por marca" subtitle="Concentración comercial por fabricante" />
 
-            <Card>
-              <p className="text-slate-500 text-sm">Máquinas Usadas</p>
-              <h3 className="text-4xl font-bold mt-2">{machineStats.usadas}</h3>
-            </Card>
-
-            <Card>
-              <p className="text-slate-500 text-sm">Buen Estado</p>
-              <h3 className="text-4xl font-bold mt-2">{machineStats.buenEstado}</h3>
-            </Card>
-
-            <Card>
-              <p className="text-slate-500 text-sm">Estado Activo</p>
-              <h3 className="text-4xl font-bold mt-2">{machineStats.activas}</h3>
-            </Card>
+          <div className="h-80 min-h-80">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
+              <BarChart data={stats.marcasData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" tickFormatter={compactName} />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="cantidad" name="Máquinas" fill="#2563eb" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
+        </Card>
 
-          <div className="grid md:grid-cols-3 gap-4 mb-6">
-            <Card>
-              <h3 className="text-xl font-bold mb-4">Maquinaria por Marca</h3>
+        <Card>
+          <ChartTitle title="Disponibilidad de flota" subtitle="Estado comercial actual" />
 
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={machineStats.marcasData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="marca" />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
-                    <Legend />
-                    <Bar
-                      dataKey="cantidad"
-                      name="Cantidad"
-                      fill="#2563eb"
-                      cursor="pointer"
-                      onClick={(data: any) => {
-                        setFiltroMarca(data.marca)
-                        setFiltroEstado(null)
-                        setFiltroEstadoFisico(null)
-                        }}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-
-            <Card>
-              <h3 className="text-xl font-bold mb-4">Maquinaria por Estado</h3>
-
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={machineStats.estadosData}
-                      dataKey="cantidad"
-                      nameKey="estado"
-                      outerRadius={110}
-                      label
-                      cursor="pointer"
-                      onClick={(data: any) => {
-                        setFiltroEstado(data.estado)
-                        setFiltroMarca(null)
-                        setFiltroEstadoFisico(null)
-                        }}
-                    >
-                      {machineStats.estadosData.map((_, index) => (
-                        <Cell
-                          key={`machine-cell-${index}`}
-                          fill={colores[index % colores.length]}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-
-            <Card>
-                <h3 className="text-xl font-bold mb-4">Maquinaria por Estado Físico</h3>
-
-                <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={machineStats.estadosFisicosData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="estado_fisico" />
-                        <YAxis allowDecimals={false} />
-                        <Tooltip />
-                        <Legend />
-                        <Bar
-                        dataKey="cantidad"
-                        name="Cantidad"
-                        fill="#f97316"
-                        cursor="pointer"
-                        onClick={(data: any) => {
-                            setFiltroEstadoFisico(data.estado_fisico)
-                            setFiltroMarca(null)
-                            setFiltroEstado(null)
-                        }}
-                        />
-                    </BarChart>
-                    </ResponsiveContainer>
-                </div>
-
-                <p className="text-sm text-slate-500 mt-2">
-                    Haz clic en una barra para filtrar por estado físico.
-                </p>
-                </Card>
-
-
-          </div>
-
-          <Card>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold">Detalle de Maquinaria</h3>
-
-              {(filtroMarca || filtroEstado || filtroEstadoFisico) && (
-                <button
-                  onClick={() => {
-                    setFiltroMarca(null)
-                    setFiltroEstado(null)
-                    setFiltroEstadoFisico(null)
-                    }}
-                  className="bg-slate-800 text-white px-3 py-1 rounded"
+          <div className="h-80 min-h-80">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
+              <PieChart>
+                <Pie
+                  data={stats.disponibilidadData}
+                  dataKey="cantidad"
+                  nameKey="estado"
+                  outerRadius={105}
+                  label
                 >
-                  Limpiar filtro
-                </button>
-              )}
+                  {stats.disponibilidadData.map((_, index) => (
+                    <Cell key={`availability-${index}`} fill={colores[index % colores.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card>
+          <ChartTitle title="Cobertura por ubicación" subtitle="Presencia operacional por bodega o cliente" />
+
+          <div className="space-y-4">
+            {stats.ubicacionesData.map((item) => (
+              <div key={item.name}>
+                <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+                  <span className="font-medium text-slate-700">{item.name}</span>
+                  <span className="font-bold text-slate-950">{item.cantidad}</span>
+                </div>
+                <div className="h-2 rounded bg-slate-100">
+                  <div
+                    className="h-2 rounded bg-blue-600"
+                    style={{ width: `${porcentaje(item.cantidad, stats.totalMachines)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      <div className="mb-6 grid gap-4 md:grid-cols-2">
+        <Card>
+          <ChartTitle title="Mix de maquinaria" subtitle="Tipos con mayor presencia en la flota" />
+
+          <div className="h-80 min-h-80">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
+              <BarChart data={stats.tiposData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" tickFormatter={compactName} />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="cantidad" name="Máquinas" fill="#16a34a" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card>
+          <ChartTitle title="Estado operativo" subtitle="Lectura rápida para ventas y operaciones" />
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded border border-emerald-200 bg-emerald-50 p-4">
+              <p className="text-sm text-emerald-700">Activas</p>
+              <h3 className="mt-2 text-3xl font-bold text-emerald-800">{stats.activas}</h3>
             </div>
 
-           <p className="text-sm text-slate-500 mb-4">
-            Mostrando {maquinasFiltradas.length} de {machines.length} máquinas
-            {filtroMarca ? ` | Marca: ${filtroMarca}` : ''}
-            {filtroEstado ? ` | Estado: ${filtroEstado}` : ''}
-            {filtroEstadoFisico ? ` | Estado físico: ${filtroEstadoFisico}` : ''}
-            </p>
+            <div className="rounded border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm text-amber-700">Mantenimiento</p>
+              <h3 className="mt-2 text-3xl font-bold text-amber-800">{stats.mantenimiento}</h3>
+            </div>
 
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b">
-                  <th className="py-2">Código</th>
-                  <th className="py-2">Nombre</th>
-                  <th className="py-2">Marca</th>
-                  <th className="py-2">Estado</th>
-                  <th className="py-2">Estado físico</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {maquinasFiltradas.map((m) => (
-                  <tr className="border-b" key={m.id || m.code}>
-                    <td className="py-2">{m.code}</td>
-                    <td className="py-2">{m.name}</td>
-                    <td className="py-2">{m.brand || 'Sin marca'}</td>
-                    <td className="py-2">{m.status}</td>
-                    <td className="py-2">{m.estado_fisico || '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        </>
-      )}
-
-      {tab === 'repuestos' && (
-        <>
-          <div className="grid md:grid-cols-4 gap-4 mb-6">
-            <Card>
-              <p className="text-slate-500 text-sm">Total Repuestos</p>
-              <h3 className="text-4xl font-bold mt-2">{spareStats.total}</h3>
-            </Card>
-
-            <Card>
-              <p className="text-slate-500 text-sm">Bajo Stock</p>
-              <h3 className="text-4xl font-bold mt-2 text-orange-600">
-                {spareStats.bajoStock}
-              </h3>
-            </Card>
-
-            <Card>
-              <p className="text-slate-500 text-sm">Sin Stock</p>
-              <h3 className="text-4xl font-bold mt-2 text-red-600">
-                {spareStats.sinStock}
-              </h3>
-            </Card>
-
-            <Card>
-              <p className="text-slate-500 text-sm">Valor Inventario</p>
-              <h3 className="text-3xl font-bold mt-2">
-                ${spareStats.valorInventario.toLocaleString('es-CL')}
-              </h3>
-            </Card>
+            <div className="rounded border border-red-200 bg-red-50 p-4">
+              <p className="text-sm text-red-700">No operativas</p>
+              <h3 className="mt-2 text-3xl font-bold text-red-800">{stats.noOperativas}</h3>
+            </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4 mb-6">
-            <Card>
-              <h3 className="text-xl font-bold mb-4">Repuestos por Categoría</h3>
-
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={spareStats.categoriasData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="categoria" />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
-                    <Legend />
-                    <Bar
-                      dataKey="cantidad"
-                      name="Cantidad"
-                      fill="#16a34a"
-                      cursor="pointer"
-                      onClick={(data: any) => {
-                        setFiltroCategoria(data.categoria)
-                        setFiltroProveedor(null)
-                      }}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-
-            <Card>
-              <h3 className="text-xl font-bold mb-4">Repuestos por Proveedor</h3>
-
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={spareStats.proveedoresData}
-                      dataKey="cantidad"
-                      nameKey="proveedor"
-                      outerRadius={110}
-                      label
-                      cursor="pointer"
-                      onClick={(data: any) => {
-                        setFiltroProveedor(data.proveedor)
-                        setFiltroCategoria(null)
-                      }}
-                    >
-                      {spareStats.proveedoresData.map((_, index) => (
-                        <Cell
-                          key={`spare-cell-${index}`}
-                          fill={colores[index % colores.length]}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
+          <div className="mt-6 h-56 min-h-56">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
+              <PieChart>
+                <Pie data={stats.estadosData} dataKey="cantidad" nameKey="estado" outerRadius={80} label>
+                  {stats.estadosData.map((_, index) => (
+                    <Cell key={`status-${index}`} fill={colores[index % colores.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
+        </Card>
+      </div>
 
-          <div className="grid md:grid-cols-2 gap-4 mb-6">
-            <Card>
-              <h3 className="text-xl font-bold mb-4">Stock por Ubicación</h3>
+      <div className="mb-6 grid gap-4 md:grid-cols-3">
+        <Card>
+          <ChartTitle title="Inventario de repuestos" subtitle="Valor y profundidad del respaldo técnico" />
 
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={spareStats.ubicacionesData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="ubicacion" />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="stock" name="Stock" fill="#7c3aed" />
-                  </BarChart>
-                </ResponsiveContainer>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded bg-emerald-50 p-3 text-emerald-700">
+                <DollarSign size={22} />
               </div>
-            </Card>
+              <div>
+                <p className="text-sm text-slate-500">Valor valorizado</p>
+                <p className="text-2xl font-bold text-slate-950">{formatoDinero(stats.valorInventario)}</p>
+              </div>
+            </div>
 
-            <Card>
-              <h3 className="text-xl font-bold mb-4">Repuestos Críticos</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded border p-3">
+                <p className="text-sm text-slate-500">Bajo stock</p>
+                <p className="text-2xl font-bold text-amber-600">{stats.bajoStock}</p>
+              </div>
 
-              {spareStats.criticos.length === 0 ? (
-                <p className="text-slate-500">No hay repuestos críticos.</p>
-              ) : (
-                <div className="space-y-3 max-h-80 overflow-auto">
-                  {spareStats.criticos.map((r) => (
-                    <div
-                      key={r.id || r.code}
-                      className="border rounded-lg p-3 bg-red-50"
-                    >
-                      <div className="flex justify-between">
-                        <strong>{r.code}</strong>
-                        <span className="text-red-700 font-bold">
-                          Stock: {r.stock}
-                        </span>
-                      </div>
+              <div className="rounded border p-3">
+                <p className="text-sm text-slate-500">Sin stock</p>
+                <p className="text-2xl font-bold text-red-600">{stats.sinStock}</p>
+              </div>
+            </div>
+          </div>
+        </Card>
 
-                      <p>{r.name}</p>
+        <Card>
+          <ChartTitle title="Categorías críticas" subtitle="Familias con mayor cantidad de ítems" />
 
+          <div className="h-72 min-h-72">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
+              <BarChart data={stats.categoriasData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" tickFormatter={compactName} />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="cantidad" name="SKUs" fill="#7c3aed" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card>
+          <ChartTitle title="Stock por ubicación" subtitle="Dónde está concentrado el respaldo" />
+
+          <div className="space-y-4">
+            {stats.stockPorUbicacion.map((item) => (
+              <div key={item.name}>
+                <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+                  <span className="font-medium text-slate-700">{item.name}</span>
+                  <span className="font-bold text-slate-950">{item.stock}</span>
+                </div>
+                <div className="h-2 rounded bg-slate-100">
+                  <div
+                    className="h-2 rounded bg-violet-600"
+                    style={{ width: `${porcentaje(item.stock, stats.stockPorUbicacion[0]?.stock || 1)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <ChartTitle title="Oportunidades operativas" subtitle="Máquinas que conviene revisar para mejorar disponibilidad" />
+
+          {stats.maquinasPrioritarias.length === 0 ? (
+            <p className="text-slate-500">No hay máquinas prioritarias.</p>
+          ) : (
+            <div className="space-y-3">
+              {stats.maquinasPrioritarias.map((machine) => (
+                <div key={machine.id || machine.code} className="rounded border border-slate-200 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-bold text-slate-950">
+                        {machine.conteo || machine.code || 'Sin código'} · {machine.brand || 'Sin marca'}
+                      </p>
                       <p className="text-sm text-slate-600">
-                        Mínimo: {r.min_stock} | Proveedor:{' '}
-                        {r.supplier || 'Sin proveedor'}
+                        {machine.model || machine.tipo || 'Sin modelo'} · {machine.location || 'Sin ubicación'}
                       </p>
                     </div>
-                  ))}
+                    <Badge value={machine.disponibilidad || machine.estado_fisico || machine.status} />
+                  </div>
                 </div>
-              )}
-            </Card>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <ChartTitle title="Riesgo de continuidad" subtitle="Repuestos que pueden afectar tiempos de respuesta" />
+
+          {stats.repuestosCriticos.length === 0 ? (
+            <p className="text-slate-500">No hay repuestos críticos.</p>
+          ) : (
+            <div className="space-y-3">
+              {stats.repuestosCriticos.map((repuesto) => (
+                <div key={repuesto.id || repuesto.code} className="rounded border border-red-100 bg-red-50 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-bold text-slate-950">{repuesto.code || 'Sin código'}</p>
+                      <p className="text-sm text-slate-700">{repuesto.name || 'Sin nombre'}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {repuesto.supplier || 'Sin proveedor'} · {repuesto.location || 'Sin ubicación'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 rounded bg-white px-2 py-1 text-sm font-bold text-red-700">
+                      <AlertTriangle size={16} />
+                      {numero(repuesto.stock)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <Card>
+          <ChartTitle title="Principales proveedores" subtitle="Concentración de abastecimiento" />
+
+          <div className="space-y-4">
+            {stats.proveedoresData.map((item) => (
+              <div key={item.name}>
+                <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+                  <span className="font-medium text-slate-700">{item.name}</span>
+                  <span className="font-bold text-slate-950">{item.cantidad}</span>
+                </div>
+                <div className="h-2 rounded bg-slate-100">
+                  <div
+                    className="h-2 rounded bg-slate-700"
+                    style={{ width: `${porcentaje(item.cantidad, stats.totalSpareParts)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
+        </Card>
 
-          <Card>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold">Detalle de Repuestos</h3>
+        <Card>
+          <ChartTitle title="Huella operativa" subtitle="Indicadores para presentar capacidad instalada" />
 
-              {(filtroCategoria || filtroProveedor) && (
-                <button
-                  onClick={() => {
-                    setFiltroCategoria(null)
-                    setFiltroProveedor(null)
-                  }}
-                  className="bg-slate-800 text-white px-3 py-1 rounded"
-                >
-                  Limpiar filtro
-                </button>
-              )}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded border p-4">
+              <div className="mb-3 rounded bg-blue-50 p-3 text-blue-700 w-fit">
+                <MapPin size={22} />
+              </div>
+              <p className="text-sm text-slate-500">Ubicaciones con maquinaria</p>
+              <p className="mt-2 text-3xl font-bold text-slate-950">{stats.ubicacionesData.length}</p>
             </div>
 
-            <p className="text-sm text-slate-500 mb-4">
-              Mostrando {repuestosFiltrados.length} de {spareParts.length} repuestos
-            </p>
-
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b">
-                  <th className="py-2">Código</th>
-                  <th className="py-2">Nombre</th>
-                  <th className="py-2">Categoría</th>
-                  <th className="py-2">Stock</th>
-                  <th className="py-2">Mínimo</th>
-                  <th className="py-2">Proveedor</th>
-                  <th className="py-2">Ubicación</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {repuestosFiltrados.map((r) => (
-                  <tr
-                    className={`border-b ${
-                      numero(r.stock) <= numero(r.min_stock) ? 'bg-red-50' : ''
-                    }`}
-                    key={r.id || r.code}
-                  >
-                    <td className="py-2">{r.code}</td>
-                    <td className="py-2">{r.name}</td>
-                    <td className="py-2">{r.category || '-'}</td>
-                    <td className="py-2 font-bold">{r.stock}</td>
-                    <td className="py-2">{r.min_stock}</td>
-                    <td className="py-2">{r.supplier || '-'}</td>
-                    <td className="py-2">{r.location || '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        </>
-      )}
+            <div className="rounded border p-4">
+              <div className="mb-3 rounded bg-emerald-50 p-3 text-emerald-700 w-fit">
+                <ShieldCheck size={22} />
+              </div>
+              <p className="text-sm text-slate-500">Cobertura operativa</p>
+              <p className="mt-2 text-3xl font-bold text-slate-950">{stats.coberturaOperativa}%</p>
+            </div>
+          </div>
+        </Card>
+      </div>
     </div>
   )
 }
