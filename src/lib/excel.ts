@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx'
 
 export async function readExcelFile(file: File, sheetIndex = 0): Promise<any[]> {
   const buffer = await file.arrayBuffer()
@@ -17,16 +17,31 @@ export async function readExcelFile(file: File, sheetIndex = 0): Promise<any[]> 
   })
 }
 
-export function normalizeMachineRow(row: Record<string, any>) {
+function texto(value: any) {
+  return String(value ?? '').trim()
+}
+
+function normalizarEstado(value: any) {
+  const estado = texto(value).toLowerCase()
+
+  if (estado === 'activa') return 'activo'
+  if (estado === 'activo') return 'activo'
+  if (estado === 'mantenimiento') return 'mantenimiento'
+  if (estado === 'inactivo') return 'inactivo'
+  if (estado === 'baja') return 'baja'
+
+  return 'activo'
+}
+
+export function normalizeMachineRow(row: any) {
   return {
-    code: String(row.codigo || row.code || row.Codigo || '').trim(),
-    name: String(row.nombre || row.name || row.Nombre || '').trim(),
-    brand: String(row.marca || row.brand || '').trim(),
-    model: String(row.modelo || row.model || '').trim(),
-    serial_number: String(row.serie || row.serial_number || '').trim(),
-    category: String(row.categoria || row.category || '').trim(),
-    location: String(row.ubicacion || row.location || '').trim(),
-    status: String(row.estado || row.status || 'operativa').trim().toLowerCase(),
-    notes: String(row.observaciones || row.notes || '').trim()
-  };
+    code: texto(row.code || row.codigo),
+    name: texto(row.name || row.nombre),
+    brand: texto(row.brand || row.marca),
+    model: texto(row.model || row.modelo),
+    serial: texto(row.serial || row.serie),
+    category: texto(row.category || row.categoria),
+    location: texto(row.location || row.ubicacion),
+    status: normalizarEstado(row.status || row.estado),
+  }
 }
