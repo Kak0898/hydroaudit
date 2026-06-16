@@ -35,7 +35,6 @@ type MachineRow = {
   serial?: string
   tipo?: string
   location?: string
-  status?: string
   estado_fisico?: string
   disponibilidad?: string
 }
@@ -83,7 +82,7 @@ function formatoDinero(value: number) {
 
 function etiqueta(value?: string, fallback = 'Sin dato') {
   const text = String(value || '').trim()
-  return text || fallback
+  return text ? text.replace(/_/g, ' ') : fallback
 }
 
 function topEntries(
@@ -121,6 +120,12 @@ function compactName(value: string) {
   return value.length > 16 ? `${value.slice(0, 15)}...` : value
 }
 
+function esBuenEstado(value?: string) {
+  const estadoFisico = normalizar(value)
+
+  return estadoFisico === 'buen_estado' || estadoFisico === 'buen estado' || estadoFisico === 'bueno'
+}
+
 function badgeClass(value?: string) {
   const estado = normalizar(value)
 
@@ -142,7 +147,7 @@ function badgeClass(value?: string) {
 function Badge({ value }: { value?: string }) {
   return (
     <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${badgeClass(value)}`}>
-      {value || 'Sin dato'}
+      {etiqueta(value)}
     </span>
   )
 }
@@ -225,34 +230,28 @@ export function Dashboard() {
     const totalMachines = machines.length
     const totalSpareParts = spareParts.length
 
-    const activas = machines.filter((m) => normalizar(m.status) === 'activo').length
-    const mantenimiento = machines.filter((m) => normalizar(m.status).includes('mantenimiento')).length
     const disponibles = machines.filter((m) => normalizar(m.disponibilidad).includes('disponible')).length
     const arrendadas = machines.filter((m) => normalizar(m.disponibilidad).includes('arrendada')).length
     const noOperativas = machines.filter((m) => {
       const disponibilidad = normalizar(m.disponibilidad)
-      const estado = normalizar(m.status)
       const fisico = normalizar(m.estado_fisico)
 
       return (
         disponibilidad.includes('no oper') ||
         disponibilidad.includes('revision') ||
-        estado.includes('baja') ||
-        estado.includes('inactivo') ||
         fisico.includes('malo')
       )
     }).length
 
-    const buenEstado = machines.filter((m) => {
-      const estadoFisico = normalizar(m.estado_fisico)
-      return estadoFisico === 'buen_estado' || estadoFisico === 'buen estado' || estadoFisico === 'bueno'
-    }).length
+    const buenEstado = machines.filter((m) => esBuenEstado(m.estado_fisico)).length
+    const regular = machines.filter((m) => normalizar(m.estado_fisico).includes('regular')).length
+    const malo = machines.filter((m) => normalizar(m.estado_fisico).includes('malo')).length
 
     const marcasData = topEntries(machines as Array<Record<string, any>>, 'brand', 'Sin marca')
     const tiposData = topEntries(machines as Array<Record<string, any>>, 'tipo', 'Sin tipo')
     const ubicacionesData = topEntries(machines as Array<Record<string, any>>, 'location', 'Sin ubicación')
 
-    const estadosData = topEntries(machines as Array<Record<string, any>>, 'status', 'Sin estado').map((item) => ({
+    const estadoFisicoData = topEntries(machines as Array<Record<string, any>>, 'estado_fisico', 'Sin estado físico').map((item) => ({
       estado: item.name,
       cantidad: item.cantidad,
     }))
@@ -280,19 +279,15 @@ export function Dashboard() {
     const proveedoresData = topEntries(spareParts as Array<Record<string, any>>, 'supplier', 'Sin proveedor')
     const stockPorUbicacion = stockEntries(spareParts, 'location', 'Sin ubicación')
 
-    const coberturaOperativa = porcentaje(activas, totalMachines)
     const saludFlota = porcentaje(buenEstado, totalMachines)
     const disponibilidadComercial = porcentaje(disponibles + arrendadas, totalMachines)
     const riesgoRepuestos = porcentaje(bajoStock + sinStock, totalSpareParts)
 
     const maquinasPrioritarias = machines
       .filter((m) => {
-        const estado = normalizar(m.status)
         const disponibilidad = normalizar(m.disponibilidad)
         const fisico = normalizar(m.estado_fisico)
         return (
-          estado.includes('mantenimiento') ||
-          estado.includes('baja') ||
           disponibilidad.includes('no oper') ||
           disponibilidad.includes('revision') ||
           fisico.includes('regular') ||
@@ -304,16 +299,16 @@ export function Dashboard() {
     return {
       totalMachines,
       totalSpareParts,
-      activas,
-      mantenimiento,
       disponibles,
       arrendadas,
       noOperativas,
       buenEstado,
+      regular,
+      malo,
       marcasData,
       tiposData,
       ubicacionesData,
-      estadosData,
+      estadoFisicoData,
       disponibilidadData,
       valorInventario,
       bajoStock,
@@ -322,7 +317,6 @@ export function Dashboard() {
       categoriasData,
       proveedoresData,
       stockPorUbicacion,
-      coberturaOperativa,
       saludFlota,
       disponibilidadComercial,
       riesgoRepuestos,
@@ -365,7 +359,7 @@ export function Dashboard() {
         <KpiCard
           title="Flota inventariada"
           value={stats.totalMachines}
-          detail={`${stats.activas} activas · ${stats.mantenimiento} en mantenimiento`}
+          detail={`${stats.buenEstado} en buen estado · ${stats.regular} regulares`}
           tone="blue"
           icon={<Truck size={24} />}
         />
@@ -476,31 +470,31 @@ export function Dashboard() {
         </Card>
 
         <Card>
-          <ChartTitle title="Estado operativo" subtitle="Lectura rápida para ventas y operaciones" />
+          <ChartTitle title="Condición física" subtitle="Lectura rápida del estado real de la flota" />
 
           <div className="grid gap-3 md:grid-cols-3">
             <div className="rounded border border-emerald-200 bg-emerald-50 p-4">
-              <p className="text-sm text-emerald-700">Activas</p>
-              <h3 className="mt-2 text-3xl font-bold text-emerald-800">{stats.activas}</h3>
+              <p className="text-sm text-emerald-700">Buen estado</p>
+              <h3 className="mt-2 text-3xl font-bold text-emerald-800">{stats.buenEstado}</h3>
             </div>
 
             <div className="rounded border border-amber-200 bg-amber-50 p-4">
-              <p className="text-sm text-amber-700">Mantenimiento</p>
-              <h3 className="mt-2 text-3xl font-bold text-amber-800">{stats.mantenimiento}</h3>
+              <p className="text-sm text-amber-700">Regular</p>
+              <h3 className="mt-2 text-3xl font-bold text-amber-800">{stats.regular}</h3>
             </div>
 
             <div className="rounded border border-red-200 bg-red-50 p-4">
-              <p className="text-sm text-red-700">No operativas</p>
-              <h3 className="mt-2 text-3xl font-bold text-red-800">{stats.noOperativas}</h3>
+              <p className="text-sm text-red-700">Malo</p>
+              <h3 className="mt-2 text-3xl font-bold text-red-800">{stats.malo}</h3>
             </div>
           </div>
 
           <div className="mt-6 h-56 min-h-56">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
               <PieChart>
-                <Pie data={stats.estadosData} dataKey="cantidad" nameKey="estado" outerRadius={80} label>
-                  {stats.estadosData.map((_, index) => (
-                    <Cell key={`status-${index}`} fill={colores[index % colores.length]} />
+                <Pie data={stats.estadoFisicoData} dataKey="cantidad" nameKey="estado" outerRadius={80} label>
+                  {stats.estadoFisicoData.map((_, index) => (
+                    <Cell key={`physical-status-${index}`} fill={colores[index % colores.length]} />
                   ))}
                 </Pie>
                 <Tooltip />
@@ -596,7 +590,7 @@ export function Dashboard() {
                         {machine.model || machine.tipo || 'Sin modelo'} · {machine.location || 'Sin ubicación'}
                       </p>
                     </div>
-                    <Badge value={machine.disponibilidad || machine.estado_fisico || machine.status} />
+                    <Badge value={machine.disponibilidad || machine.estado_fisico} />
                   </div>
                 </div>
               ))}
@@ -671,8 +665,8 @@ export function Dashboard() {
               <div className="mb-3 rounded bg-emerald-50 p-3 text-emerald-700 w-fit">
                 <ShieldCheck size={22} />
               </div>
-              <p className="text-sm text-slate-500">Cobertura operativa</p>
-              <p className="mt-2 text-3xl font-bold text-slate-950">{stats.coberturaOperativa}%</p>
+              <p className="text-sm text-slate-500">Disponibilidad comercial</p>
+              <p className="mt-2 text-3xl font-bold text-slate-950">{stats.disponibilidadComercial}%</p>
             </div>
           </div>
         </Card>

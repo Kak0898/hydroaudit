@@ -39,7 +39,7 @@ const emptyForm: MachineRow = {
   anio: null,
   location: '',
   status: 'activo',
-  estado_fisico: 'buen_estado',
+  estado_fisico: 'buen estado',
   estado_detalle: '',
   disponibilidad: 'disponible',
   tipo_bateria: '',
@@ -85,6 +85,16 @@ function normalizar(value?: string) {
   return String(value || '').trim().toLowerCase()
 }
 
+function mostrarValor(value?: string | number | null) {
+  const text = String(value ?? '').trim()
+
+  return text ? text.replace(/_/g, ' ') : '-'
+}
+
+function estadoFisicoFormValue(value?: string) {
+  return normalizar(value) === 'buen_estado' ? 'buen estado' : value || 'buen estado'
+}
+
 function badgeClass(value?: string) {
   const estado = normalizar(value)
 
@@ -106,7 +116,7 @@ function badgeClass(value?: string) {
 function Badge({ value }: { value?: string }) {
   return (
     <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${badgeClass(value)}`}>
-      {value || '-'}
+      {mostrarValor(value)}
     </span>
   )
 }
@@ -115,7 +125,7 @@ function DetailItem({ label, value }: { label: string; value?: string | number |
   return (
     <div>
       <div className="text-xs font-semibold uppercase text-slate-500">{label}</div>
-      <div className="mt-1 text-sm text-slate-900">{value || '-'}</div>
+      <div className="mt-1 text-sm text-slate-900">{mostrarValor(value)}</div>
     </div>
   )
 }
@@ -216,7 +226,7 @@ export function Maquinaria() {
       anio: form.anio ? Number(form.anio) : null,
       location: form.location || '',
       status: form.status || 'activo',
-      estado_fisico: form.estado_fisico || 'buen_estado',
+      estado_fisico: form.estado_fisico || 'buen estado',
       estado_detalle: form.estado_detalle || '',
       disponibilidad: form.disponibilidad || '',
       tipo_bateria: form.tipo_bateria || '',
@@ -256,7 +266,7 @@ export function Maquinaria() {
       anio: machine.anio || null,
       location: machine.location || '',
       status: machine.status || 'activo',
-      estado_fisico: machine.estado_fisico || 'buen_estado',
+      estado_fisico: estadoFisicoFormValue(machine.estado_fisico),
       estado_detalle: machine.estado_detalle || '',
       disponibilidad: machine.disponibilidad || '',
       tipo_bateria: machine.tipo_bateria || '',
@@ -437,23 +447,12 @@ export function Maquinaria() {
 
               <select
                 className="border p-3 rounded"
-                value={form.status || 'activo'}
-                onChange={(e) => setForm({ ...form, status: e.target.value })}
-              >
-                <option value="activo">Activo</option>
-                <option value="mantenimiento">Mantenimiento</option>
-                <option value="inactivo">Inactivo</option>
-                <option value="baja">Baja</option>
-              </select>
-
-              <select
-                className="border p-3 rounded"
-                value={form.estado_fisico || 'buen_estado'}
+                value={form.estado_fisico || 'buen estado'}
                 onChange={(e) => setForm({ ...form, estado_fisico: e.target.value })}
               >
                 <option value="nuevo">Nuevo</option>
                 <option value="usado">Usado</option>
-                <option value="buen_estado">Buen estado</option>
+                <option value="buen estado">Buen estado</option>
                 <option value="regular">Regular</option>
                 <option value="malo">Malo</option>
               </select>
@@ -543,7 +542,6 @@ export function Maquinaria() {
                 <th className="py-2">Modelo</th>
                 <th className="py-2">Tipo</th>
                 <th className="py-2">Ubicación</th>
-                <th className="py-2">Estado</th>
                 <th className="py-2">Estado físico</th>
                 <th className="py-2">Disponibilidad</th>
                 <th className="py-2">Acciones</th>
@@ -562,7 +560,6 @@ export function Maquinaria() {
                   <td className="py-3">{m.model || '-'}</td>
                   <td className="py-2">{m.tipo || '-'}</td>
                   <td className="py-2">{m.location || '-'}</td>
-                  <td className="py-2"><Badge value={m.status} /></td>
                   <td className="py-2"><Badge value={m.estado_fisico} /></td>
                   <td className="py-2"><Badge value={m.disponibilidad} /></td>
                   <td className="py-2">
@@ -597,7 +594,7 @@ export function Maquinaria() {
 
               {!loading && items.length === 0 && (
                 <tr>
-                  <td className="py-4 text-center text-slate-500" colSpan={10}>
+                  <td className="py-4 text-center text-slate-500" colSpan={9}>
                     No hay maquinaria para mostrar
                   </td>
                 </tr>
@@ -605,7 +602,7 @@ export function Maquinaria() {
 
               {loading && (
                 <tr>
-                  <td className="py-4 text-center text-slate-500" colSpan={10}>
+                  <td className="py-4 text-center text-slate-500" colSpan={9}>
                     Cargando maquinaria...
                   </td>
                 </tr>
@@ -637,7 +634,6 @@ export function Maquinaria() {
               </div>
 
               <div className="mb-6 flex flex-wrap gap-2">
-                <Badge value={selectedMachine.status} />
                 <Badge value={selectedMachine.estado_fisico} />
                 <Badge value={selectedMachine.disponibilidad} />
               </div>
