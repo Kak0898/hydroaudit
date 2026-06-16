@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Eye, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Card } from '../components/Card'
 
@@ -80,10 +81,51 @@ function generarNombre(form: MachineRow) {
     .join(' ')
 }
 
+function normalizar(value?: string) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function badgeClass(value?: string) {
+  const estado = normalizar(value)
+
+  if (estado.includes('activo') || estado.includes('disponible') || estado.includes('buen')) {
+    return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  }
+
+  if (estado.includes('mantenimiento') || estado.includes('regular')) {
+    return 'bg-amber-50 text-amber-700 border-amber-200'
+  }
+
+  if (estado.includes('inactivo') || estado.includes('baja') || estado.includes('malo')) {
+    return 'bg-red-50 text-red-700 border-red-200'
+  }
+
+  return 'bg-slate-50 text-slate-700 border-slate-200'
+}
+
+function Badge({ value }: { value?: string }) {
+  return (
+    <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${badgeClass(value)}`}>
+      {value || '-'}
+    </span>
+  )
+}
+
+function DetailItem({ label, value }: { label: string; value?: string | number | null }) {
+  return (
+    <div>
+      <div className="text-xs font-semibold uppercase text-slate-500">{label}</div>
+      <div className="mt-1 text-sm text-slate-900">{value || '-'}</div>
+    </div>
+  )
+}
+
 export function Maquinaria() {
   const [items, setItems] = useState<MachineRow[]>([])
   const [form, setForm] = useState<MachineRow>(emptyForm)
   const [editingCode, setEditingCode] = useState<string | null>(null)
+  const [showForm, setShowForm] = useState(false)
+  const [selectedMachine, setSelectedMachine] = useState<MachineRow | null>(null)
   const [page, setPage] = useState(1)
   const [totalRows, setTotalRows] = useState(0)
   const [serieInput, setSerieInput] = useState('')
@@ -147,6 +189,13 @@ export function Maquinaria() {
     }
   }
 
+  function nuevaMaquinaria() {
+    setForm(emptyForm)
+    setEditingCode(null)
+    setSelectedMachine(null)
+    setShowForm(true)
+  }
+
   async function save() {
     const code = generarCodigo(form)
     const name = generarNombre(form)
@@ -188,6 +237,7 @@ export function Maquinaria() {
 
     setForm(emptyForm)
     setEditingCode(null)
+    setShowForm(false)
     load(page, searchSerie)
 
     alert(editingCode ? 'Maquinaria actualizada correctamente' : 'Maquinaria guardada correctamente')
@@ -217,11 +267,14 @@ export function Maquinaria() {
     })
 
     setEditingCode(machine.code)
+    setSelectedMachine(null)
+    setShowForm(true)
   }
 
   function cancelarEdicion() {
     setForm(emptyForm)
     setEditingCode(null)
+    setShowForm(false)
   }
 
   async function eliminarMaquina(code: string) {
@@ -240,6 +293,9 @@ export function Maquinaria() {
     }
 
     load(page, searchSerie)
+    if (selectedMachine?.code === code) {
+      setSelectedMachine(null)
+    }
     alert('Maquinaria eliminada correctamente')
   }
 
@@ -248,175 +304,15 @@ export function Maquinaria() {
       <h2 className="text-3xl font-bold mb-6">Maquinaria</h2>
 
       <Card>
-        <div className="grid md:grid-cols-5 gap-3 mb-6">
-          <input
-            className="border p-3 rounded"
-            placeholder="Código"
-            value={form.code}
-            disabled={!!editingCode}
-            onChange={(e) => setForm({ ...form, code: e.target.value })}
-          />
-
-          <input
-            className="border p-3 rounded"
-            placeholder="Conteo"
-            value={form.conteo || ''}
-            onChange={(e) => setForm({ ...form, conteo: e.target.value })}
-          />
-
-          <input
-            className="border p-3 rounded"
-            placeholder="Nombre"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-
-          <input
-            className="border p-3 rounded"
-            placeholder="Modelo"
-            value={form.model || ''}
-            onChange={(e) => setForm({ ...form, model: e.target.value })}
-          />
-
-          <input
-            className="border p-3 rounded"
-            placeholder="Color"
-            value={form.color || ''}
-            onChange={(e) => setForm({ ...form, color: e.target.value })}
-          />
-
-          <input
-            className="border p-3 rounded"
-            placeholder="Marca"
-            value={form.brand || ''}
-            onChange={(e) => setForm({ ...form, brand: e.target.value })}
-          />
-
-          <input
-            className="border p-3 rounded"
-            placeholder="Serie"
-            value={form.serial || ''}
-            onChange={(e) => setForm({ ...form, serial: e.target.value })}
-          />
-
-          <input
-            className="border p-3 rounded"
-            placeholder="Tipo"
-            value={form.tipo || ''}
-            onChange={(e) => setForm({ ...form, tipo: e.target.value })}
-          />
-
-          <input
-            className="border p-3 rounded"
-            type="number"
-            placeholder="Año"
-            value={form.anio || ''}
-            onChange={(e) =>
-              setForm({ ...form, anio: e.target.value ? Number(e.target.value) : null })
-            }
-          />
-
-          <input
-            className="border p-3 rounded"
-            placeholder="Ubicación"
-            value={form.location || ''}
-            onChange={(e) => setForm({ ...form, location: e.target.value })}
-          />
-
-          <select
-            className="border p-3 rounded"
-            value={form.status || 'activo'}
-            onChange={(e) => setForm({ ...form, status: e.target.value })}
-          >
-            <option value="activo">Activo</option>
-            <option value="mantenimiento">Mantenimiento</option>
-            <option value="inactivo">Inactivo</option>
-            <option value="baja">Baja</option>
-          </select>
-
-          <select
-            className="border p-3 rounded"
-            value={form.estado_fisico || 'buen_estado'}
-            onChange={(e) => setForm({ ...form, estado_fisico: e.target.value })}
-          >
-            <option value="nuevo">Nuevo</option>
-            <option value="usado">Usado</option>
-            <option value="buen_estado">Buen estado</option>
-            <option value="regular">Regular</option>
-            <option value="malo">Malo</option>
-          </select>
-
-          <input
-            className="border p-3 rounded"
-            placeholder="Estado detalle"
-            value={form.estado_detalle || ''}
-            onChange={(e) => setForm({ ...form, estado_detalle: e.target.value })}
-          />
-
-          <input
-            className="border p-3 rounded"
-            placeholder="Disponibilidad"
-            value={form.disponibilidad || ''}
-            onChange={(e) => setForm({ ...form, disponibilidad: e.target.value })}
-          />
-
-          <input
-            className="border p-3 rounded"
-            placeholder="Tipo de batería"
-            value={form.tipo_bateria || ''}
-            onChange={(e) => setForm({ ...form, tipo_bateria: e.target.value })}
-          />
-
-          <input
-            className="border p-3 rounded"
-            type="number"
-            placeholder="Alto batería"
-            value={form.alto_bateria || ''}
-            onChange={(e) => setForm({ ...form, alto_bateria: Number(e.target.value) })}
-          />
-
-          <input
-            className="border p-3 rounded"
-            type="number"
-            placeholder="Ancho batería"
-            value={form.ancho_bateria || ''}
-            onChange={(e) => setForm({ ...form, ancho_bateria: Number(e.target.value) })}
-          />
-
-          <input
-            className="border p-3 rounded"
-            type="number"
-            placeholder="Largo"
-            value={form.largo || ''}
-            onChange={(e) => setForm({ ...form, largo: Number(e.target.value) })}
-          />
-
-          <input
-            className="border p-3 rounded"
-            type="number"
-            placeholder="Altura"
-            value={form.altura || ''}
-            onChange={(e) => setForm({ ...form, altura: Number(e.target.value) })}
-          />
-
+        <div className="flex flex-col gap-3 mb-5 md:flex-row md:items-center md:justify-between">
           <button
-            onClick={save}
-            className="bg-blue-600 text-white rounded px-4 py-3"
+            onClick={nuevaMaquinaria}
+            className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white rounded px-4 py-3"
           >
-            {editingCode ? 'Actualizar' : 'Guardar'}
+            <Plus size={18} />
+            Nueva maquinaria
           </button>
 
-          {editingCode && (
-            <button
-              onClick={cancelarEdicion}
-              className="bg-slate-700 text-white rounded px-4 py-3"
-            >
-              Cancelar
-            </button>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-3 mb-4 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-col gap-2 md:flex-row md:items-center">
             <input
               className="border p-3 rounded"
@@ -431,23 +327,210 @@ export function Maquinaria() {
             <button
               onClick={buscarSerie}
               disabled={loading}
-              className="bg-blue-600 text-white rounded px-4 py-3 disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white rounded px-4 py-3 disabled:opacity-50"
             >
+              <Search size={18} />
               Buscar
             </button>
 
             <button
               onClick={limpiarBusqueda}
               disabled={loading && !serieInput && !searchSerie}
-              className="bg-slate-700 text-white rounded px-4 py-3 disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 bg-slate-700 text-white rounded px-4 py-3 disabled:opacity-50"
             >
+              <X size={18} />
               Limpiar
             </button>
           </div>
+        </div>
 
-          <div className="text-sm text-slate-600">
-            {loading ? 'Cargando maquinaria...' : `${totalRows} registro${totalRows === 1 ? '' : 's'}`}
+        {showForm && (
+          <div className="mb-6 border-b pb-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold">
+                {editingCode ? 'Editar maquinaria' : 'Nueva maquinaria'}
+              </h3>
+
+              <button
+                onClick={cancelarEdicion}
+                className="inline-flex items-center justify-center rounded border px-3 py-2 text-slate-700"
+                title="Cerrar formulario"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="grid md:grid-cols-5 gap-3">
+              <input
+                className="border p-3 rounded"
+                placeholder="Código"
+                value={form.code}
+                disabled={!!editingCode}
+                onChange={(e) => setForm({ ...form, code: e.target.value })}
+              />
+
+              <input
+                className="border p-3 rounded"
+                placeholder="Conteo"
+                value={form.conteo || ''}
+                onChange={(e) => setForm({ ...form, conteo: e.target.value })}
+              />
+
+              <input
+                className="border p-3 rounded"
+                placeholder="Nombre"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+
+              <input
+                className="border p-3 rounded"
+                placeholder="Modelo"
+                value={form.model || ''}
+                onChange={(e) => setForm({ ...form, model: e.target.value })}
+              />
+
+              <input
+                className="border p-3 rounded"
+                placeholder="Color"
+                value={form.color || ''}
+                onChange={(e) => setForm({ ...form, color: e.target.value })}
+              />
+
+              <input
+                className="border p-3 rounded"
+                placeholder="Marca"
+                value={form.brand || ''}
+                onChange={(e) => setForm({ ...form, brand: e.target.value })}
+              />
+
+              <input
+                className="border p-3 rounded"
+                placeholder="Serie"
+                value={form.serial || ''}
+                onChange={(e) => setForm({ ...form, serial: e.target.value })}
+              />
+
+              <input
+                className="border p-3 rounded"
+                placeholder="Tipo"
+                value={form.tipo || ''}
+                onChange={(e) => setForm({ ...form, tipo: e.target.value })}
+              />
+
+              <input
+                className="border p-3 rounded"
+                type="number"
+                placeholder="Año"
+                value={form.anio || ''}
+                onChange={(e) =>
+                  setForm({ ...form, anio: e.target.value ? Number(e.target.value) : null })
+                }
+              />
+
+              <input
+                className="border p-3 rounded"
+                placeholder="Ubicación"
+                value={form.location || ''}
+                onChange={(e) => setForm({ ...form, location: e.target.value })}
+              />
+
+              <select
+                className="border p-3 rounded"
+                value={form.status || 'activo'}
+                onChange={(e) => setForm({ ...form, status: e.target.value })}
+              >
+                <option value="activo">Activo</option>
+                <option value="mantenimiento">Mantenimiento</option>
+                <option value="inactivo">Inactivo</option>
+                <option value="baja">Baja</option>
+              </select>
+
+              <select
+                className="border p-3 rounded"
+                value={form.estado_fisico || 'buen_estado'}
+                onChange={(e) => setForm({ ...form, estado_fisico: e.target.value })}
+              >
+                <option value="nuevo">Nuevo</option>
+                <option value="usado">Usado</option>
+                <option value="buen_estado">Buen estado</option>
+                <option value="regular">Regular</option>
+                <option value="malo">Malo</option>
+              </select>
+
+              <input
+                className="border p-3 rounded"
+                placeholder="Estado detalle"
+                value={form.estado_detalle || ''}
+                onChange={(e) => setForm({ ...form, estado_detalle: e.target.value })}
+              />
+
+              <input
+                className="border p-3 rounded"
+                placeholder="Disponibilidad"
+                value={form.disponibilidad || ''}
+                onChange={(e) => setForm({ ...form, disponibilidad: e.target.value })}
+              />
+
+              <input
+                className="border p-3 rounded"
+                placeholder="Tipo de batería"
+                value={form.tipo_bateria || ''}
+                onChange={(e) => setForm({ ...form, tipo_bateria: e.target.value })}
+              />
+
+              <input
+                className="border p-3 rounded"
+                type="number"
+                placeholder="Alto batería"
+                value={form.alto_bateria || ''}
+                onChange={(e) => setForm({ ...form, alto_bateria: Number(e.target.value) })}
+              />
+
+              <input
+                className="border p-3 rounded"
+                type="number"
+                placeholder="Ancho batería"
+                value={form.ancho_bateria || ''}
+                onChange={(e) => setForm({ ...form, ancho_bateria: Number(e.target.value) })}
+              />
+
+              <input
+                className="border p-3 rounded"
+                type="number"
+                placeholder="Largo"
+                value={form.largo || ''}
+                onChange={(e) => setForm({ ...form, largo: Number(e.target.value) })}
+              />
+
+              <input
+                className="border p-3 rounded"
+                type="number"
+                placeholder="Altura"
+                value={form.altura || ''}
+                onChange={(e) => setForm({ ...form, altura: Number(e.target.value) })}
+              />
+
+              <button
+                onClick={save}
+                className="bg-blue-600 text-white rounded px-4 py-3"
+              >
+                {editingCode ? 'Actualizar' : 'Guardar'}
+              </button>
+
+              <button
+                onClick={cancelarEdicion}
+                className="bg-slate-700 text-white rounded px-4 py-3"
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
+        )}
+
+        <div className="mb-3 flex items-center justify-between text-sm text-slate-600">
+          <span>{loading ? 'Cargando maquinaria...' : `${totalRows} registro${totalRows === 1 ? '' : 's'}`}</span>
+          <span>Página {page} de {totalPages}</span>
         </div>
 
         <div className="overflow-auto">
@@ -455,62 +538,57 @@ export function Maquinaria() {
             <thead>
               <tr className="border-b">
                 <th className="py-2">Conteo</th>
-                <th className="py-2">Código</th>
-                <th className="py-2">Modelo</th>
-                <th className="py-2">Color</th>
-                <th className="py-2">Marca</th>
                 <th className="py-2">Serie</th>
+                <th className="py-2">Marca</th>
+                <th className="py-2">Modelo</th>
                 <th className="py-2">Tipo</th>
-                <th className="py-2">Año</th>
                 <th className="py-2">Ubicación</th>
                 <th className="py-2">Estado</th>
                 <th className="py-2">Estado físico</th>
-                <th className="py-2">Estado detalle</th>
                 <th className="py-2">Disponibilidad</th>
-                <th className="py-2">Tipo batería</th>
-                <th className="py-2">Alto batería</th>
-                <th className="py-2">Ancho batería</th>
-                <th className="py-2">Largo</th>
-                <th className="py-2">Altura</th>
                 <th className="py-2">Acciones</th>
               </tr>
             </thead>
 
             <tbody>
               {!loading && items.map((m) => (
-                <tr className="border-b" key={m.id || m.code}>
-                  <td className="py-2">{m.conteo || '-'}</td>
-                  <td className="py-2">{m.code}</td>
-                  <td className="py-2">{m.model || '-'}</td>
-                  <td className="py-2">{m.color || '-'}</td>
-                  <td className="py-2">{m.brand || '-'}</td>
-                  <td className="py-2">{m.serial || '-'}</td>
+                <tr className="border-b hover:bg-slate-50" key={m.id || m.code}>
+                  <td className="py-3 font-semibold">{m.conteo || '-'}</td>
+                  <td className="py-3">
+                    <div className="font-semibold">{m.serial || '-'}</div>
+                    <div className="text-xs text-slate-500">{m.code || '-'}</div>
+                  </td>
+                  <td className="py-3">{m.brand || '-'}</td>
+                  <td className="py-3">{m.model || '-'}</td>
                   <td className="py-2">{m.tipo || '-'}</td>
-                  <td className="py-2">{m.anio || '-'}</td>
                   <td className="py-2">{m.location || '-'}</td>
-                  <td className="py-2">{m.status || '-'}</td>
-                  <td className="py-2">{m.estado_fisico || '-'}</td>
-                  <td className="py-2">{m.estado_detalle || '-'}</td>
-                  <td className="py-2">{m.disponibilidad || '-'}</td>
-                  <td className="py-2">{m.tipo_bateria || '-'}</td>
-                  <td className="py-2">{m.alto_bateria || '-'}</td>
-                  <td className="py-2">{m.ancho_bateria || '-'}</td>
-                  <td className="py-2">{m.largo || '-'}</td>
-                  <td className="py-2">{m.altura || '-'}</td>
+                  <td className="py-2"><Badge value={m.status} /></td>
+                  <td className="py-2"><Badge value={m.estado_fisico} /></td>
+                  <td className="py-2"><Badge value={m.disponibilidad} /></td>
                   <td className="py-2">
                     <div className="flex gap-2">
                       <button
-                        onClick={() => editarMaquina(m)}
-                        className="bg-yellow-500 text-white px-3 py-1 rounded"
+                        onClick={() => setSelectedMachine(m)}
+                        className="inline-flex items-center justify-center rounded border px-3 py-2 text-slate-700"
+                        title="Ver detalle"
                       >
-                        Editar
+                        <Eye size={16} />
+                      </button>
+
+                      <button
+                        onClick={() => editarMaquina(m)}
+                        className="inline-flex items-center justify-center rounded bg-yellow-500 px-3 py-2 text-white"
+                        title="Editar"
+                      >
+                        <Pencil size={16} />
                       </button>
 
                       <button
                         onClick={() => eliminarMaquina(m.code)}
-                        className="bg-red-600 text-white px-3 py-1 rounded"
+                        className="inline-flex items-center justify-center rounded bg-red-600 px-3 py-2 text-white"
+                        title="Eliminar"
                       >
-                        Eliminar
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </td>
@@ -519,7 +597,7 @@ export function Maquinaria() {
 
               {!loading && items.length === 0 && (
                 <tr>
-                  <td className="py-4 text-center text-slate-500" colSpan={19}>
+                  <td className="py-4 text-center text-slate-500" colSpan={10}>
                     No hay maquinaria para mostrar
                   </td>
                 </tr>
@@ -527,7 +605,7 @@ export function Maquinaria() {
 
               {loading && (
                 <tr>
-                  <td className="py-4 text-center text-slate-500" colSpan={19}>
+                  <td className="py-4 text-center text-slate-500" colSpan={10}>
                     Cargando maquinaria...
                   </td>
                 </tr>
@@ -536,10 +614,68 @@ export function Maquinaria() {
           </table>
         </div>
 
-        <div className="flex flex-col gap-3 mt-4 md:flex-row md:items-center md:justify-between">
-          <div className="text-sm text-slate-600">
-            Página {page} de {totalPages}
+        {selectedMachine && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+            <div className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded bg-white p-6 shadow-xl">
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-xl font-bold">
+                    {selectedMachine.brand || 'Maquinaria'} {selectedMachine.model || ''}
+                  </h3>
+                  <div className="mt-1 text-sm text-slate-500">
+                    Serie {selectedMachine.serial || '-'} - Código {selectedMachine.code || '-'}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setSelectedMachine(null)}
+                  className="inline-flex items-center justify-center rounded border px-3 py-2 text-slate-700"
+                  title="Cerrar detalle"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="mb-6 flex flex-wrap gap-2">
+                <Badge value={selectedMachine.status} />
+                <Badge value={selectedMachine.estado_fisico} />
+                <Badge value={selectedMachine.disponibilidad} />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-4">
+                <DetailItem label="Conteo" value={selectedMachine.conteo} />
+                <DetailItem label="Modelo" value={selectedMachine.model} />
+                <DetailItem label="Color" value={selectedMachine.color} />
+                <DetailItem label="Marca" value={selectedMachine.brand} />
+                <DetailItem label="Serie" value={selectedMachine.serial} />
+                <DetailItem label="Tipo" value={selectedMachine.tipo} />
+                <DetailItem label="Año" value={selectedMachine.anio} />
+                <DetailItem label="Ubicación" value={selectedMachine.location} />
+                <DetailItem label="Estado físico" value={selectedMachine.estado_fisico} />
+                <DetailItem label="Estado detalle" value={selectedMachine.estado_detalle} />
+                <DetailItem label="Disponibilidad" value={selectedMachine.disponibilidad} />
+                <DetailItem label="Tipo batería" value={selectedMachine.tipo_bateria} />
+                <DetailItem label="Alto batería" value={selectedMachine.alto_bateria} />
+                <DetailItem label="Ancho batería" value={selectedMachine.ancho_bateria} />
+                <DetailItem label="Largo" value={selectedMachine.largo} />
+                <DetailItem label="Altura" value={selectedMachine.altura} />
+              </div>
+
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  onClick={() => editarMaquina(selectedMachine)}
+                  className="inline-flex items-center justify-center gap-2 rounded bg-yellow-500 px-4 py-2 text-white"
+                >
+                  <Pencil size={16} />
+                  Editar
+                </button>
+              </div>
+            </div>
           </div>
+        )}
+
+        <div className="flex flex-col gap-3 mt-4 md:flex-row md:items-center md:justify-between">
+          <div className="text-sm text-slate-600">{totalRows} resultados</div>
 
           <div className="flex gap-2">
             <button
