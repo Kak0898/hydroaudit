@@ -43,5 +43,6 @@ export function normalizeMachineRow(row: any) {
     category: texto(row.category || row.categoria),
     location: texto(row.location || row.ubicacion),
     status: normalizarEstado(row.status || row.estado),
+    estado_fisico: texto(row.estado_fisico || row.condicion || 'buen_estado'),
   }
 }
