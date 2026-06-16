@@ -26,6 +26,7 @@ type MachineRow = {
 }
 
 const emptyForm: MachineRow = {
+
   code: '',
   name: '',
   conteo: '',
@@ -46,6 +47,7 @@ const emptyForm: MachineRow = {
   largo: 0,
   altura: 0,
 }
+const PAGE_SIZE = 10
 
 function slug(value: string) {
   return String(value || '')
@@ -82,24 +84,47 @@ export function Maquinaria() {
   const [items, setItems] = useState<MachineRow[]>([])
   const [form, setForm] = useState<MachineRow>(emptyForm)
   const [editingCode, setEditingCode] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [totalRows, setTotalRows] = useState(0)
+  const [searchSerie, setSearchSerie] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  async function load() {
-    const { data, error } = await supabase
+const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE))
+  async function load(currentPage = page, serie = searchSerie) {
+    setLoading(true)
+
+    const from = (currentPage - 1) * PAGE_SIZE
+    const to = from + PAGE_SIZE - 1
+
+    let query = supabase
       .from('machines')
-      .select('*')
+      .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
+
+    if (serie.trim()) {
+      query = query.ilike('serial', `%${serie.trim()}%`)
+    }
+
+    const { data, error, count } = await query.range(from, to)
 
     if (error) {
       alert(error.message)
+      setLoading(false)
       return
     }
 
     setItems(data || [])
+    setTotalRows(count || 0)
+    setLoading(false)
   }
 
-  useEffect(() => {
-    load()
-  }, [])
+    useEffect(() => {
+    const timer = setTimeout(() => {
+      load(page, searchSerie)
+    }, 400)
+
+    return () => clearTimeout(timer)
+  }, [page, searchSerie])
 
   async function save() {
     const code = generarCodigo(form)
