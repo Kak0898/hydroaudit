@@ -1,11 +1,20 @@
 import * as XLSX from 'xlsx';
 
-export async function readExcelFile<T = Record<string, unknown>>(file: File): Promise<T[]> {
-  const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: 'array' });
-  const firstSheet = workbook.SheetNames[0];
-  const worksheet = workbook.Sheets[firstSheet];
-  return XLSX.utils.sheet_to_json<T>(worksheet, { defval: '' });
+export async function readExcelFile(file: File, sheetIndex = 0): Promise<any[]> {
+  const buffer = await file.arrayBuffer()
+  const workbook = XLSX.read(buffer, { type: 'array' })
+
+  const selectedSheetName = workbook.SheetNames[sheetIndex]
+
+  if (!selectedSheetName) {
+    throw new Error(`No existe la hoja número ${sheetIndex + 1} en el Excel`)
+  }
+
+  const worksheet = workbook.Sheets[selectedSheetName]
+
+  return XLSX.utils.sheet_to_json(worksheet, {
+    defval: '',
+  })
 }
 
 export function normalizeMachineRow(row: Record<string, any>) {

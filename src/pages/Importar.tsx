@@ -36,15 +36,17 @@ export function Importar() {
   const [loading, setLoading] = useState(false)
 
   async function onFile(file: File) {
-    const raw = await readExcelFile(file)
+    const sheetIndex = type === 'machines' ? 0 : 1
+
+    const raw = await readExcelFile(file, sheetIndex)
 
     const mapped =
-      type === 'machines'
+        type === 'machines'
         ? raw.map((r: any) => normalizeMachineRow(r))
         : raw.map((r: any) => normalizeSparePartRow(r))
 
     setRows(mapped)
-  }
+    }
 
   async function importRows() {
     const valid = rows.filter((r) => r.code && r.name)
