@@ -160,12 +160,21 @@ export function Maquinaria() {
   const [page, setPage] = useState(1)
   const [totalRows, setTotalRows] = useState(0)
   const [serieInput, setSerieInput] = useState('')
+  const [marcaInput, setMarcaInput] = useState('')
+  const [tipoInput, setTipoInput] = useState('')
   const [searchSerie, setSearchSerie] = useState('')
+  const [searchMarca, setSearchMarca] = useState('')
+  const [searchTipo, setSearchTipo] = useState('')
   const [loading, setLoading] = useState(false)
 
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE))
 
-  async function load(currentPage = page, serie = searchSerie) {
+  async function load(
+    currentPage = page,
+    serie = searchSerie,
+    marca = searchMarca,
+    tipo = searchTipo,
+  ) {
     setLoading(true)
 
     const from = (currentPage - 1) * PAGE_SIZE
@@ -178,6 +187,14 @@ export function Maquinaria() {
 
     if (serie.trim()) {
       query = query.ilike('serial', `%${serie.trim()}%`)
+    }
+
+    if (marca.trim()) {
+      query = query.ilike('brand', `%${marca.trim()}%`)
+    }
+
+    if (tipo.trim()) {
+      query = query.ilike('tipo', `%${tipo.trim()}%`)
     }
 
     const { data, error, count } = await query.range(from, to)
@@ -196,27 +213,35 @@ export function Maquinaria() {
   }
 
   useEffect(() => {
-    load(page, searchSerie)
-  }, [page, searchSerie])
+    load(page, searchSerie, searchMarca, searchTipo)
+  }, [page, searchSerie, searchMarca, searchTipo])
 
-  function buscarSerie() {
+  function buscarFiltros() {
     const serie = serieInput.trim()
+    const marca = marcaInput.trim()
+    const tipo = tipoInput.trim()
 
     setPage(1)
     setSearchSerie(serie)
+    setSearchMarca(marca)
+    setSearchTipo(tipo)
 
-    if (page === 1 && searchSerie === serie) {
-      load(1, serie)
+    if (page === 1 && searchSerie === serie && searchMarca === marca && searchTipo === tipo) {
+      load(1, serie, marca, tipo)
     }
   }
 
   function limpiarBusqueda() {
     setSerieInput('')
+    setMarcaInput('')
+    setTipoInput('')
     setPage(1)
     setSearchSerie('')
+    setSearchMarca('')
+    setSearchTipo('')
 
-    if (page === 1 && searchSerie === '') {
-      load(1, '')
+    if (page === 1 && searchSerie === '' && searchMarca === '' && searchTipo === '') {
+      load(1, '', '', '')
     }
   }
 
@@ -336,7 +361,7 @@ export function Maquinaria() {
     setForm(emptyForm)
     setEditingCode(null)
     setShowForm(false)
-    load(page, searchSerie)
+    load(page, searchSerie, searchMarca, searchTipo)
 
     alert(editingCode ? 'Maquinaria actualizada correctamente' : 'Maquinaria guardada correctamente')
   }
@@ -390,7 +415,7 @@ export function Maquinaria() {
       return
     }
 
-    load(page, searchSerie)
+    load(page, searchSerie, searchMarca, searchTipo)
     if (selectedMachine?.code === code) {
       setSelectedMachine(null)
     }
@@ -418,12 +443,32 @@ export function Maquinaria() {
               value={serieInput}
               onChange={(e) => setSerieInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') buscarSerie()
+                if (e.key === 'Enter') buscarFiltros()
+              }}
+            />
+
+            <input
+              className="border p-3 rounded"
+              placeholder="Buscar por marca"
+              value={marcaInput}
+              onChange={(e) => setMarcaInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') buscarFiltros()
+              }}
+            />
+
+            <input
+              className="border p-3 rounded"
+              placeholder="Buscar por tipo"
+              value={tipoInput}
+              onChange={(e) => setTipoInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') buscarFiltros()
               }}
             />
 
             <button
-              onClick={buscarSerie}
+              onClick={buscarFiltros}
               disabled={loading}
               className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white rounded px-4 py-3 disabled:opacity-50"
             >
@@ -433,7 +478,15 @@ export function Maquinaria() {
 
             <button
               onClick={limpiarBusqueda}
-              disabled={loading && !serieInput && !searchSerie}
+              disabled={
+                loading &&
+                !serieInput &&
+                !marcaInput &&
+                !tipoInput &&
+                !searchSerie &&
+                !searchMarca &&
+                !searchTipo
+              }
               className="inline-flex items-center justify-center gap-2 bg-slate-700 text-white rounded px-4 py-3 disabled:opacity-50"
             >
               <X size={18} />
