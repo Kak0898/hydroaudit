@@ -60,6 +60,7 @@ export function Dashboard() {
 
   const [filtroMarca, setFiltroMarca] = useState<string | null>(null)
   const [filtroEstado, setFiltroEstado] = useState<string | null>(null)
+  const [filtroEstadoFisico, setFiltroEstadoFisico] = useState<string | null>(null)
   const [filtroCategoria, setFiltroCategoria] = useState<string | null>(null)
   const [filtroProveedor, setFiltroProveedor] = useState<string | null>(null)
 
@@ -137,6 +138,21 @@ export function Dashboard() {
       cantidad,
     }))
 
+    const porEstadoFisico = machines.reduce<Record<string, number>>((acc, machine) => {
+        const estadoFisico = machine.estado_fisico?.trim() || 'sin_estado_fisico'
+        acc[estadoFisico] = (acc[estadoFisico] || 0) + 1
+        return acc
+        }, {})
+
+        const estadosFisicosData = Object.entries(porEstadoFisico).map(
+        ([estado_fisico, cantidad]) => ({
+            estado_fisico,
+            cantidad,
+        })
+    )
+
+
+
     return {
       total,
       usadas,
@@ -144,6 +160,7 @@ export function Dashboard() {
       activas,
       marcasData,
       estadosData,
+      estadosFisicosData,
     }
   }, [machines])
 
@@ -208,11 +225,21 @@ export function Dashboard() {
 
   const maquinasFiltradas = useMemo(() => {
     return machines.filter((m) => {
-      const coincideMarca = filtroMarca ? (m.brand || 'Sin marca') === filtroMarca : true
-      const coincideEstado = filtroEstado ? (m.status || 'sin_estado') === filtroEstado : true
-      return coincideMarca && coincideEstado
+        const coincideMarca = filtroMarca
+        ? (m.brand || 'Sin marca') === filtroMarca
+        : true
+
+        const coincideEstado = filtroEstado
+        ? (m.status || 'sin_estado') === filtroEstado
+        : true
+
+        const coincideEstadoFisico = filtroEstadoFisico
+        ? (m.estado_fisico || 'sin_estado_fisico') === filtroEstadoFisico
+        : true
+
+        return coincideMarca && coincideEstado && coincideEstadoFisico
     })
-  }, [machines, filtroMarca, filtroEstado])
+    }, [machines, filtroMarca, filtroEstado, filtroEstadoFisico])
 
   const repuestosFiltrados = useMemo(() => {
     return spareParts.filter((r) => {
@@ -300,7 +327,7 @@ export function Dashboard() {
             </Card>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4 mb-6">
+          <div className="grid md:grid-cols-3 gap-4 mb-6">
             <Card>
               <h3 className="text-xl font-bold mb-4">Maquinaria por Marca</h3>
 
@@ -320,7 +347,8 @@ export function Dashboard() {
                       onClick={(data: any) => {
                         setFiltroMarca(data.marca)
                         setFiltroEstado(null)
-                      }}
+                        setFiltroEstadoFisico(null)
+                        }}
                     />
                   </BarChart>
                 </ResponsiveContainer>
@@ -343,7 +371,8 @@ export function Dashboard() {
                       onClick={(data: any) => {
                         setFiltroEstado(data.estado)
                         setFiltroMarca(null)
-                      }}
+                        setFiltroEstadoFisico(null)
+                        }}
                     >
                       {machineStats.estadosData.map((_, index) => (
                         <Cell
@@ -358,18 +387,52 @@ export function Dashboard() {
                 </ResponsiveContainer>
               </div>
             </Card>
+
+            <Card>
+                <h3 className="text-xl font-bold mb-4">Maquinaria por Estado Físico</h3>
+
+                <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={machineStats.estadosFisicosData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="estado_fisico" />
+                        <YAxis allowDecimals={false} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar
+                        dataKey="cantidad"
+                        name="Cantidad"
+                        fill="#f97316"
+                        cursor="pointer"
+                        onClick={(data: any) => {
+                            setFiltroEstadoFisico(data.estado_fisico)
+                            setFiltroMarca(null)
+                            setFiltroEstado(null)
+                        }}
+                        />
+                    </BarChart>
+                    </ResponsiveContainer>
+                </div>
+
+                <p className="text-sm text-slate-500 mt-2">
+                    Haz clic en una barra para filtrar por estado físico.
+                </p>
+                </Card>
+
+
           </div>
 
           <Card>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold">Detalle de Maquinaria</h3>
 
-              {(filtroMarca || filtroEstado) && (
+              {(filtroMarca || filtroEstado || filtroEstadoFisico) && (
                 <button
                   onClick={() => {
                     setFiltroMarca(null)
                     setFiltroEstado(null)
-                  }}
+                    setFiltroEstadoFisico(null)
+                    }}
                   className="bg-slate-800 text-white px-3 py-1 rounded"
                 >
                   Limpiar filtro
@@ -377,8 +440,11 @@ export function Dashboard() {
               )}
             </div>
 
-            <p className="text-sm text-slate-500 mb-4">
-              Mostrando {maquinasFiltradas.length} de {machines.length} máquinas
+           <p className="text-sm text-slate-500 mb-4">
+            Mostrando {maquinasFiltradas.length} de {machines.length} máquinas
+            {filtroMarca ? ` | Marca: ${filtroMarca}` : ''}
+            {filtroEstado ? ` | Estado: ${filtroEstado}` : ''}
+            {filtroEstadoFisico ? ` | Estado físico: ${filtroEstadoFisico}` : ''}
             </p>
 
             <table className="w-full text-left">
