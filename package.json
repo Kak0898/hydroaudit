@@ -12,6 +12,7 @@
     "react": "latest",
     "react-dom": "latest",
     "recharts": "^3.8.1",
+    "tesseract.js": "^7.0.0",
     "typescript": "latest",
     "vite": "latest",
     "xlsx": "latest",

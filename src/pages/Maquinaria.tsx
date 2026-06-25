@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Eye, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { Camera, Eye, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Card } from '../components/Card'
 
@@ -116,6 +116,126 @@ function estadoFisicoFormValue(value?: string) {
   return normalizar(value) === 'buen_estado' ? 'buen estado' : value || 'buen estado'
 }
 
+function extraerDatosPlaca(text: string) {
+  const normalizedText = text
+    .replace(/[|]/g, '1')
+    .replace(/[Oo]/g, '0')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const serialMatch = normalizedText.match(/SERIAL\s*(?:N0|NO|N°|Nº|NUM|NUMBER)?\.?\s*[:\-]?\s*([0-9]{6,})/i)
+  const numbers = Array.from(normalizedText.matchAll(/\b\d{3,8}\b/g))
+    .map((match) => Number(match[0]))
+    .filter((value) => Number.isFinite(value))
+
+  const serial = serialMatch?.[1] || ''
+  const heightCandidates = numbers.filter((value) => value >= 2000 && value <= 12000 && String(value) !== serial)
+  const lengthCandidates = numbers.filter((value) => value >= 300 && value <= 1250 && String(value) !== serial)
+
+  return {
+    serial,
+    altura: heightCandidates.length ? Math.max(...heightCandidates) : 0,
+    largo: lengthCandidates.length ? Math.max(...lengthCandidates) : 0,
+  }
+}
+
+function scorePlateData(data: { serial: string; altura: number; largo: number }) {
+  return (data.serial ? 3 : 0) + (data.altura ? 2 : 0) + (data.largo ? 2 : 0)
+}
+
+function loadImage(file: File) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image()
+    const url = URL.createObjectURL(file)
+
+    image.onload = () => {
+      URL.revokeObjectURL(url)
+      resolve(image)
+    }
+
+    image.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('No se pudo cargar la imagen'))
+    }
+
+    image.src = url
+  })
+}
+
+function createPlateVariant(
+  image: HTMLImageElement,
+  rotation: 0 | 90 | 180 | 270,
+  crop = { x: 0, y: 0, width: 1, height: 1 },
+) {
+  const rotatedWidth = rotation === 90 || rotation === 270 ? image.height : image.width
+  const rotatedHeight = rotation === 90 || rotation === 270 ? image.width : image.height
+  const sourceCanvas = document.createElement('canvas')
+  const sourceContext = sourceCanvas.getContext('2d')
+
+  sourceCanvas.width = rotatedWidth
+  sourceCanvas.height = rotatedHeight
+
+  if (!sourceContext) return ''
+
+  sourceContext.translate(rotatedWidth / 2, rotatedHeight / 2)
+  sourceContext.rotate((rotation * Math.PI) / 180)
+  sourceContext.drawImage(image, -image.width / 2, -image.height / 2)
+
+  const cropX = Math.round(rotatedWidth * crop.x)
+  const cropY = Math.round(rotatedHeight * crop.y)
+  const cropWidth = Math.round(rotatedWidth * crop.width)
+  const cropHeight = Math.round(rotatedHeight * crop.height)
+  const scale = 2
+  const outputCanvas = document.createElement('canvas')
+  const outputContext = outputCanvas.getContext('2d')
+
+  outputCanvas.width = cropWidth * scale
+  outputCanvas.height = cropHeight * scale
+
+  if (!outputContext) return ''
+
+  outputContext.drawImage(
+    sourceCanvas,
+    cropX,
+    cropY,
+    cropWidth,
+    cropHeight,
+    0,
+    0,
+    outputCanvas.width,
+    outputCanvas.height,
+  )
+
+  const imageData = outputContext.getImageData(0, 0, outputCanvas.width, outputCanvas.height)
+
+  for (let index = 0; index < imageData.data.length; index += 4) {
+    const gray = imageData.data[index] * 0.299 + imageData.data[index + 1] * 0.587 + imageData.data[index + 2] * 0.114
+    const contrasted = Math.max(0, Math.min(255, (gray - 128) * 2.8 + 128))
+
+    imageData.data[index] = contrasted
+    imageData.data[index + 1] = contrasted
+    imageData.data[index + 2] = contrasted
+  }
+
+  outputContext.putImageData(imageData, 0, 0)
+
+  return outputCanvas.toDataURL('image/png')
+}
+
+async function createPlateVariants(file: File) {
+  const image = await loadImage(file)
+  const crops = [
+    { x: 0, y: 0, width: 1, height: 1 },
+    { x: 0.05, y: 0.1, width: 0.9, height: 0.75 },
+    { x: 0.08, y: 0.15, width: 0.8, height: 0.6 },
+    { x: 0.05, y: 0.2, width: 0.45, height: 0.6 },
+  ]
+
+  return ([0, 90, 180, 270] as const).flatMap((rotation) => {
+    return crops.map((crop) => createPlateVariant(image, rotation, crop)).filter(Boolean)
+  })
+}
+
 function badgeClass(value?: string) {
   const estado = normalizar(value)
 
@@ -166,6 +286,8 @@ export function Maquinaria() {
   const [searchMarca, setSearchMarca] = useState('')
   const [searchTipo, setSearchTipo] = useState('')
   const [loading, setLoading] = useState(false)
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const [ocrText, setOcrText] = useState('')
 
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE))
 
@@ -398,6 +520,70 @@ export function Maquinaria() {
     setForm(emptyForm)
     setEditingCode(null)
     setShowForm(false)
+    setOcrText('')
+  }
+
+  async function analizarFotoPlaca(file: File) {
+    setOcrLoading(true)
+    setOcrText('')
+    let worker: any = null
+
+    try {
+      const { createWorker, PSM } = await import('tesseract.js')
+      const variants = await createPlateVariants(file)
+      const detectedTexts: string[] = []
+      let bestText = ''
+      let detected = { serial: '', altura: 0, largo: 0 }
+
+      worker = await createWorker('eng')
+      await worker.setParameters({
+        tessedit_pageseg_mode: PSM.SPARSE_TEXT,
+        tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.:-°º ',
+      })
+
+      for (const variant of variants) {
+        const { data } = await worker.recognize(variant)
+        const detectedText = data.text || ''
+        const variantData = extraerDatosPlaca(detectedText)
+
+        detectedTexts.push(detectedText)
+
+        if (scorePlateData(variantData) > scorePlateData(detected)) {
+          detected = variantData
+          bestText = detectedText
+        }
+
+        if (detected.serial && detected.altura && detected.largo) break
+      }
+
+      const combinedText = detectedTexts.join('\n\n---\n\n')
+      const combinedData = extraerDatosPlaca(combinedText)
+
+      if (scorePlateData(combinedData) >= scorePlateData(detected)) {
+        detected = combinedData
+        bestText = combinedText
+      }
+
+      setOcrText(bestText || combinedText)
+      setForm((currentForm) => ({
+        ...currentForm,
+        serial: detected.serial || currentForm.serial,
+        altura: detected.altura || currentForm.altura,
+        largo: detected.largo || currentForm.largo,
+      }))
+
+      if (!detected.serial && !detected.altura && !detected.largo) {
+        alert('No pude detectar serie, altura o largo en la imagen. Puedes ingresarlos manualmente.')
+      }
+    } catch (error: any) {
+      alert(error.message || 'No se pudo analizar la imagen')
+    } finally {
+      if (worker) {
+        await worker.terminate()
+      }
+
+      setOcrLoading(false)
+    }
   }
 
   async function eliminarMaquina(code: string) {
@@ -563,6 +749,23 @@ export function Maquinaria() {
                 onChange={(e) => setForm({ ...form, serial: e.target.value })}
               />
 
+              <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded bg-slate-800 px-4 py-3 text-white">
+                <Camera size={18} />
+                {ocrLoading ? 'Analizando...' : 'Leer placa'}
+                <input
+                  className="hidden"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  disabled={ocrLoading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) analizarFotoPlaca(file)
+                    e.currentTarget.value = ''
+                  }}
+                />
+              </label>
+
               <input
                 className="border p-3 rounded"
                 placeholder="Tipo"
@@ -666,6 +869,15 @@ export function Maquinaria() {
                 Cancelar
               </button>
             </div>
+
+            {ocrText && (
+              <details className="mt-3 rounded border bg-slate-50 p-3 text-sm text-slate-600">
+                <summary className="cursor-pointer font-semibold text-slate-800">
+                  Texto detectado desde la placa
+                </summary>
+                <pre className="mt-2 whitespace-pre-wrap">{ocrText}</pre>
+              </details>
+            )}
           </div>
         )}
 
