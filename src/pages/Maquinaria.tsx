@@ -609,22 +609,22 @@ export function Maquinaria() {
   }
 
   return (
-    <div>
-      <h2 className="text-3xl font-bold mb-6">Maquinaria</h2>
+    <div className="pb-6">
+      <h2 className="mb-4 text-2xl font-bold md:mb-6 md:text-3xl">Maquinaria</h2>
 
       <Card>
-        <div className="flex flex-col gap-3 mb-5 md:flex-row md:items-center md:justify-between">
+        <div className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <button
             onClick={nuevaMaquinaria}
-            className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white rounded px-4 py-3"
+            className="inline-flex w-full items-center justify-center gap-2 rounded bg-blue-600 px-4 py-3 text-white sm:w-auto"
           >
             <Plus size={18} />
             Nueva maquinaria
           </button>
 
-          <div className="flex flex-col gap-2 md:flex-row md:items-center">
+          <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:w-auto xl:grid-cols-[repeat(3,minmax(150px,1fr))_auto_auto] xl:items-center">
             <input
-              className="border p-3 rounded"
+              className="w-full rounded border p-3"
               placeholder="Buscar por serie"
               value={serieInput}
               onChange={(e) => setSerieInput(e.target.value)}
@@ -634,7 +634,7 @@ export function Maquinaria() {
             />
 
             <input
-              className="border p-3 rounded"
+              className="w-full rounded border p-3"
               placeholder="Buscar por marca"
               value={marcaInput}
               onChange={(e) => setMarcaInput(e.target.value)}
@@ -644,7 +644,7 @@ export function Maquinaria() {
             />
 
             <input
-              className="border p-3 rounded"
+              className="w-full rounded border p-3"
               placeholder="Buscar por tipo"
               value={tipoInput}
               onChange={(e) => setTipoInput(e.target.value)}
@@ -656,7 +656,7 @@ export function Maquinaria() {
             <button
               onClick={buscarFiltros}
               disabled={loading}
-              className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white rounded px-4 py-3 disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-2 rounded bg-blue-600 px-4 py-3 text-white disabled:opacity-50"
             >
               <Search size={18} />
               Buscar
@@ -673,7 +673,7 @@ export function Maquinaria() {
                 !searchMarca &&
                 !searchTipo
               }
-              className="inline-flex items-center justify-center gap-2 bg-slate-700 text-white rounded px-4 py-3 disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-2 rounded bg-slate-700 px-4 py-3 text-white disabled:opacity-50"
             >
               <X size={18} />
               Limpiar
@@ -683,7 +683,7 @@ export function Maquinaria() {
 
         {showForm && (
           <div className="mb-6 border-b pb-6">
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex items-center justify-between gap-3">
               <h3 className="text-lg font-bold">
                 {editingCode ? 'Editar maquinaria' : 'Nueva maquinaria'}
               </h3>
@@ -697,9 +697,9 @@ export function Maquinaria() {
               </button>
             </div>
 
-            <div className="grid md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <input
-                className="border p-3 rounded bg-slate-100 text-slate-600"
+                className="w-full min-w-0 rounded border bg-slate-100 p-3 text-slate-600"
                 placeholder="Código automático"
                 value={form.code}
                 disabled
@@ -707,7 +707,7 @@ export function Maquinaria() {
               />
 
               <input
-                className={`border p-3 rounded ${!editingCode ? 'bg-slate-100 text-slate-600' : ''}`}
+                className={`w-full min-w-0 rounded border p-3 ${!editingCode ? 'bg-slate-100 text-slate-600' : ''}`}
                 placeholder="Conteo automático"
                 value={form.conteo || ''}
                 disabled={!editingCode}
@@ -715,41 +715,41 @@ export function Maquinaria() {
               />
 
               <input
-                className="border p-3 rounded"
+                className="w-full min-w-0 rounded border p-3"
                 placeholder="Nombre"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
 
               <input
-                className="border p-3 rounded"
+                className="w-full min-w-0 rounded border p-3"
                 placeholder="Modelo"
                 value={form.model || ''}
                 onChange={(e) => setForm({ ...form, model: e.target.value })}
               />
 
               <input
-                className="border p-3 rounded"
+                className="w-full min-w-0 rounded border p-3"
                 placeholder="Color"
                 value={form.color || ''}
                 onChange={(e) => setForm({ ...form, color: e.target.value })}
               />
 
               <input
-                className="border p-3 rounded"
+                className="w-full min-w-0 rounded border p-3"
                 placeholder="Marca"
                 value={form.brand || ''}
                 onChange={(e) => setForm({ ...form, brand: e.target.value })}
               />
 
               <input
-                className="border p-3 rounded"
+                className="w-full min-w-0 rounded border p-3"
                 placeholder="Serie"
                 value={form.serial || ''}
                 onChange={(e) => setForm({ ...form, serial: e.target.value })}
               />
 
-              <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded bg-slate-800 px-4 py-3 text-white">
+              <label className="inline-flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded bg-slate-800 px-4 py-3 text-white">
                 <Camera size={18} />
                 {ocrLoading ? 'Analizando...' : 'Leer placa'}
                 <input
@@ -767,14 +767,14 @@ export function Maquinaria() {
               </label>
 
               <input
-                className="border p-3 rounded"
+                className="w-full min-w-0 rounded border p-3"
                 placeholder="Tipo"
                 value={form.tipo || ''}
                 onChange={(e) => setForm({ ...form, tipo: e.target.value })}
               />
 
               <input
-                className="border p-3 rounded"
+                className="w-full min-w-0 rounded border p-3"
                 type="number"
                 placeholder="Año"
                 value={form.anio || ''}
@@ -784,14 +784,14 @@ export function Maquinaria() {
               />
 
               <input
-                className="border p-3 rounded"
+                className="w-full min-w-0 rounded border p-3"
                 placeholder="Ubicación"
                 value={form.location || ''}
                 onChange={(e) => setForm({ ...form, location: e.target.value })}
               />
 
               <select
-                className="border p-3 rounded"
+                className="w-full min-w-0 rounded border p-3"
                 value={form.estado_fisico || 'buen estado'}
                 onChange={(e) => setForm({ ...form, estado_fisico: e.target.value })}
               >
@@ -803,28 +803,28 @@ export function Maquinaria() {
               </select>
 
               <input
-                className="border p-3 rounded"
+                className="w-full min-w-0 rounded border p-3"
                 placeholder="Estado detalle"
                 value={form.estado_detalle || ''}
                 onChange={(e) => setForm({ ...form, estado_detalle: e.target.value })}
               />
 
               <input
-                className="border p-3 rounded"
+                className="w-full min-w-0 rounded border p-3"
                 placeholder="Disponibilidad"
                 value={form.disponibilidad || ''}
                 onChange={(e) => setForm({ ...form, disponibilidad: e.target.value })}
               />
 
               <input
-                className="border p-3 rounded"
+                className="w-full min-w-0 rounded border p-3"
                 placeholder="Tipo de batería"
                 value={form.tipo_bateria || ''}
                 onChange={(e) => setForm({ ...form, tipo_bateria: e.target.value })}
               />
 
               <input
-                className="border p-3 rounded"
+                className="w-full min-w-0 rounded border p-3"
                 type="number"
                 placeholder="Alto batería"
                 value={form.alto_bateria || ''}
@@ -832,7 +832,7 @@ export function Maquinaria() {
               />
 
               <input
-                className="border p-3 rounded"
+                className="w-full min-w-0 rounded border p-3"
                 type="number"
                 placeholder="Ancho batería"
                 value={form.ancho_bateria || ''}
@@ -840,7 +840,7 @@ export function Maquinaria() {
               />
 
               <input
-                className="border p-3 rounded"
+                className="w-full min-w-0 rounded border p-3"
                 type="number"
                 placeholder="Largo"
                 value={form.largo || ''}
@@ -848,7 +848,7 @@ export function Maquinaria() {
               />
 
               <input
-                className="border p-3 rounded"
+                className="w-full min-w-0 rounded border p-3"
                 type="number"
                 placeholder="Altura"
                 value={form.altura || ''}
@@ -857,14 +857,14 @@ export function Maquinaria() {
 
               <button
                 onClick={save}
-                className="bg-blue-600 text-white rounded px-4 py-3"
+                className="rounded bg-blue-600 px-4 py-3 text-white"
               >
                 {editingCode ? 'Actualizar' : 'Guardar'}
               </button>
 
               <button
                 onClick={cancelarEdicion}
-                className="bg-slate-700 text-white rounded px-4 py-3"
+                className="rounded bg-slate-700 px-4 py-3 text-white"
               >
                 Cancelar
               </button>
@@ -881,12 +881,86 @@ export function Maquinaria() {
           </div>
         )}
 
-        <div className="mb-3 flex items-center justify-between text-sm text-slate-600">
+        <div className="mb-3 flex flex-col gap-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
           <span>{loading ? 'Cargando maquinaria...' : `${totalRows} registro${totalRows === 1 ? '' : 's'}`}</span>
           <span>Página {page} de {totalPages}</span>
         </div>
 
-        <div className="overflow-auto">
+        <div className="space-y-3 md:hidden">
+          {!loading && items.map((m) => (
+            <div className="rounded border bg-white p-4 shadow-sm" key={m.id || m.code}>
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold uppercase text-slate-500">Conteo {m.conteo || '-'}</div>
+                  <div className="truncate text-base font-bold text-slate-900">{m.brand || 'Sin marca'}</div>
+                  <div className="truncate text-sm text-slate-600">{m.model || '-'}</div>
+                </div>
+
+                <div className="shrink-0 text-right">
+                  <div className="text-xs font-semibold text-slate-500">Serie</div>
+                  <div className="max-w-[130px] truncate text-sm font-semibold text-slate-900">{m.serial || '-'}</div>
+                </div>
+              </div>
+
+              <div className="mb-3 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <div className="text-xs font-semibold uppercase text-slate-500">Tipo</div>
+                  <div className="truncate text-slate-900">{m.tipo || '-'}</div>
+                </div>
+
+                <div>
+                  <div className="text-xs font-semibold uppercase text-slate-500">Ubicación</div>
+                  <div className="truncate text-slate-900">{m.location || '-'}</div>
+                </div>
+              </div>
+
+              <div className="mb-4 flex flex-wrap gap-2">
+                <Badge value={m.estado_fisico} />
+                <Badge value={m.disponibilidad} />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => setSelectedMachine(m)}
+                  className="inline-flex min-h-11 items-center justify-center gap-1 rounded border px-2 py-2 text-sm text-slate-700"
+                >
+                  <Eye size={16} />
+                  Ver
+                </button>
+
+                <button
+                  onClick={() => editarMaquina(m)}
+                  className="inline-flex min-h-11 items-center justify-center gap-1 rounded bg-yellow-500 px-2 py-2 text-sm text-white"
+                >
+                  <Pencil size={16} />
+                  Editar
+                </button>
+
+                <button
+                  onClick={() => eliminarMaquina(m.code)}
+                  className="inline-flex min-h-11 items-center justify-center gap-1 rounded bg-red-600 px-2 py-2 text-sm text-white"
+                >
+                  <Trash2 size={16} />
+                  Borrar
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {!loading && items.length === 0 && (
+            <div className="rounded border bg-slate-50 p-4 text-center text-sm text-slate-500">
+              No hay maquinaria para mostrar
+            </div>
+          )}
+
+          {loading && (
+            <div className="rounded border bg-slate-50 p-4 text-center text-sm text-slate-500">
+              Cargando maquinaria...
+            </div>
+          )}
+        </div>
+
+        <div className="hidden overflow-auto md:block">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b">
@@ -966,11 +1040,11 @@ export function Maquinaria() {
         </div>
 
         {selectedMachine && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-            <div className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded bg-white p-6 shadow-xl">
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-3 sm:items-center sm:p-4">
+            <div className="max-h-[92vh] w-full max-w-4xl overflow-auto rounded bg-white p-4 shadow-xl sm:p-6">
               <div className="mb-5 flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-xl font-bold">
+                <div className="min-w-0">
+                  <h3 className="truncate text-lg font-bold sm:text-xl">
                     {selectedMachine.brand || 'Maquinaria'} {selectedMachine.model || ''}
                   </h3>
                   <div className="mt-1 text-sm text-slate-500">
@@ -992,7 +1066,7 @@ export function Maquinaria() {
                 <Badge value={selectedMachine.disponibilidad} />
               </div>
 
-              <div className="grid gap-4 md:grid-cols-4">
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                 <DetailItem label="Conteo" value={selectedMachine.conteo} />
                 <DetailItem label="Modelo" value={selectedMachine.model} />
                 <DetailItem label="Color" value={selectedMachine.color} />
@@ -1014,7 +1088,7 @@ export function Maquinaria() {
               <div className="mt-6 flex justify-end gap-2">
                 <button
                   onClick={() => editarMaquina(selectedMachine)}
-                  className="inline-flex items-center justify-center gap-2 rounded bg-yellow-500 px-4 py-2 text-white"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded bg-yellow-500 px-4 py-3 text-white sm:w-auto sm:py-2"
                 >
                   <Pencil size={16} />
                   Editar
@@ -1024,14 +1098,14 @@ export function Maquinaria() {
           </div>
         )}
 
-        <div className="flex flex-col gap-3 mt-4 md:flex-row md:items-center md:justify-between">
+        <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="text-sm text-slate-600">{totalRows} resultados</div>
 
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex">
             <button
               onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
               disabled={loading || page <= 1}
-              className="bg-slate-700 text-white rounded px-4 py-2 disabled:opacity-50"
+              className="rounded bg-slate-700 px-4 py-3 text-white disabled:opacity-50 sm:py-2"
             >
               Anterior
             </button>
@@ -1039,7 +1113,7 @@ export function Maquinaria() {
             <button
               onClick={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}
               disabled={loading || page >= totalPages}
-              className="bg-slate-700 text-white rounded px-4 py-2 disabled:opacity-50"
+              className="rounded bg-slate-700 px-4 py-3 text-white disabled:opacity-50 sm:py-2"
             >
               Siguiente
             </button>
